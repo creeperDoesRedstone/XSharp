@@ -1,0 +1,16 @@
+LDIA - Loads an immediate 14-bit value into the A register
+COMP - Executes the instruction code in the ALU, jump if necessary
+       Jumps are based on the ALU output.
+NOOP - Nothing!
+HALT - Stops the program execution.
+
+Example program:
+
+1 | LDIA 4
+2 | COMP A JGT // Jumps if the result is greater than 0
+3 | LDIA 69 // Loads a junk value into A register
+4 | HALT
+5 | LDIA 100
+6 | HALT
+
+After the execution of the program, the A register should have the value 100.
