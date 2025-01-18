@@ -13,7 +13,7 @@ def run(fn: str, ftxt: str):
 	if ast.error: return None, ast.error
 
 	compiler = Compiler()
-	res = compiler.visit(ast.node)
+	res = compiler.visit(ast.node, 0)
 	return res.value, res.error
 
 print("\t--- X# COMPILER ---")
