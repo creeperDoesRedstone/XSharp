@@ -25,6 +25,22 @@ ALU_CODES = {
 	"M--": 120,
 	"D+A": 144,
 	"D+M": 16,
+	"D-A": 216,
+	"D-M": 88,
+	"A-D": 154,
+	"M-D": 26,
+	"D&A": 128,
+	"D&M": 0,
+	"!(D&A)": 136,
+	"!(D&M)": 8,
+	"D|A": 202,
+	"D|M": 74,
+	"!(D|A)": 194,
+	"!(D|M)": 66,
+	"D^A": 129,
+	"D^M": 1,
+	"!(D^A)": 137,
+	"!(D^M)": 9,
 }
 
 JUMPS = {
@@ -151,15 +167,17 @@ class Main(QMainWindow):
 		self.assemble_button.setText("Assemble!")
 		self.assemble_button.clicked.connect(self.assemble)
 
+		panel_stylesheet: str = f'padding: 12px; font: 10pt "JetBrains Mono"'
+
 		self.result = QTextEdit(self)
 		self.result.setReadOnly(True)
 		self.result.setGeometry(400, 140, 360, 420)
-		self.result.setStyleSheet(f"padding: 20px")
+		self.result.setStyleSheet(panel_stylesheet)
 
 		self.file_text = QTextEdit(self)
 		self.file_text.setReadOnly(True)
 		self.file_text.setGeometry(40, 140, 360, 420)
-		self.file_text.setStyleSheet(f"padding: 20px")
+		self.file_text.setStyleSheet(panel_stylesheet)
 		self.highlighter = SyntaxHighlighter(self.file_text.document())
 
 	def assemble(self):
