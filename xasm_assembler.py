@@ -3,6 +3,7 @@ from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
 from PyQt6.QtCore import QRegularExpression
 
 # Lookup table for codes
+# Format: A? NotD ZeroD And|Add NotOutPut ZeroA|M NotA|M DisableCarry
 ALU_CODES = {
 	"0": 36,
 	"1": 126,
@@ -13,11 +14,17 @@ ALU_CODES = {
 	"!D": 14,
 	"!A": 232,
 	"!M": 104,
-	"-D": 15,
+	"-D": 30,
 	"-A": 248,
 	"-M": 120,
+	"D++": 94,
+	"A++": 251,
+	"M++": 123,
+	"D--": 22,
+	"A--": 248,
+	"M--": 120,
 	"D+A": 144,
-	"D+M": 16
+	"D+M": 16,
 }
 
 JUMPS = {
