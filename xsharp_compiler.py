@@ -105,7 +105,7 @@ class Compiler:
 				else: folding = False
 			else: value = f"{node.left.value}"
 
-			value += f"{op_map[str(node.op.token_type)][1]}"
+			if folding: value += f"{op_map[str(node.op.token_type)][1]}"
 
 			if isinstance(node.right, Identifier):
 				if node.right.symbol in self.constants:
