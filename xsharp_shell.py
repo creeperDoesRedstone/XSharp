@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QTextEdit, Q
 from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
 from PyQt6.QtCore import QRegularExpression
 
-MAX_INSTRUCTIONS = 2 ** 14
+MAX_INSTRUCTIONS = 2 ** 13
 
 def run(fn: str, ftxt: str):
 	lexer = Lexer(fn, ftxt)
