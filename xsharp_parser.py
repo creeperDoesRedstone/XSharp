@@ -70,6 +70,11 @@ class VarDeclaration:
 	def __repr__(self):
 		return f"VarDeclaration[{self.identifier}] -> {self.value}"
 
+class Assignment:
+	def __init__(self, identifier: Identifier, expr):
+		self.identifier = identifier
+		self.expr = expr
+
 class ForLoop:
 	def __init__(self, start_pos: Position, end_pos: Position, identifier: str, start: int, end: int, step: int, body: Statements):
 		self.start_pos = start_pos
@@ -300,7 +305,26 @@ class Parser:
 		return res.success(ForLoop(start_pos, end_pos, identifier, start, end, step, body))
 
 	def expression(self):
-		return self.logical()
+		return self.assignment()
+	
+	def assignment(self):
+		res = ParseResult()
+		value = res.register(self.logical())
+		if res.error: return res
+
+		if self.current_token.token_type == TT.COL: # Assignment -> var: value
+			self.advance()
+			if not isinstance(value, Identifier):
+				return res.fail(InvalidSyntax(
+					value.start_pos, value.end_pos,
+					"Expected an identifier before ':'."
+				))
+			expr = res.register(self.expression())
+			if res.error: return res
+
+			return res.success(Assignment(value, expr))
+
+		return res.success(value)
 
 	def binary_op(self, func, token_types: tuple[TT]):
 		res = ParseResult()
