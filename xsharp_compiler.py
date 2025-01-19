@@ -1,4 +1,4 @@
-from xsharp_parser import Statements, BinaryOperation, UnaryOperation, IntLiteral, Identifier, ConstDefinition, VarDeclaration, ForLoop
+from xsharp_parser import Statements, BinaryOperation, UnaryOperation, IntLiteral, Identifier, ConstDefinition, VarDeclaration, Assignment, ForLoop
 from xsharp_helper import CompilationError
 
 ## COMPILE RESULT
@@ -252,8 +252,20 @@ class Compiler:
 		self.instructions += [
 			f"LDIA {16 + self.vars}",
 			"COMP D M"
-		] # Store result in D register into memory
+		] # Store result in D register to memory
 		self.vars += 1
+
+	def visitAssignment(self, node: Assignment):
+		self.generate_code(node.expr)
+		if node.identifier.symbol not in self.variables:
+			raise Exception(f"Undefined symbol: {node.identifier.symbol}.")
+		
+		addr = self.variables[node.identifier.symbol]
+		
+		self.instructions += [
+			f"LDIA {addr}",
+			"COMP D M"
+		] # Store result in D register to memory
 
 	def visitForLoop(self, node: ForLoop):
 		# Check if identifier is a variable
