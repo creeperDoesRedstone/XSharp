@@ -211,7 +211,9 @@ class ConstDefinition:
 		return f"ConstDef[{self.symbol} -> {self.value}]"
 
 class Statements:
-	def __init__(self, body: list):
+	def __init__(self, start_pos: Position, end_pos: Position, body: list):
+		self.start_pos = start_pos
+		self.end_pos = end_pos
 		self.body = body
 
 ## PARSE RESULT
@@ -266,6 +268,12 @@ class Parser:
 
 		while more_statements:
 			while self.current_token.token_type == TT.NEWLINE: self.advance()
+			start_pos = self.current_token.start_pos
+
+			if self.current_token.token_type == TT.EOF:
+				end_pos = self.current_token.end_pos
+				more_statements = False
+				break
 
 			stmt = res.register(self.statement())
 			if res.error: return res
@@ -273,9 +281,10 @@ class Parser:
 			body.append(stmt)
 
 			if self.current_token.token_type == TT.EOF:
+				end_pos = self.current_token.end_pos
 				more_statements = False
 		
-		return res.success(Statements(body))
+		return res.success(Statements(start_pos, end_pos, body))
 
 	def statement(self):
 		if self.current_token.token_type == TT.KEYWORD:
@@ -387,98 +396,105 @@ class CompileResult:
 ## COMPILER
 class Compiler:
 	def __init__(self):
-		self.constants: dict[str, int] = {}
+		self.instructions = []
+		self.symbol_table = {}
+		self.label_count = 0
 
-	def visit(self, node, hierachy: int) -> CompileResult:
-		method_name = f"visit_{type(node).__name__}"
-		method = getattr(self, method_name, self.no_visit_method)
-		return method(node, hierachy)
-	
-	def no_visit_method(self, node, hierachy: int):
-		raise Exception(f"No visit_{type(node).__name__}() method defined.")
-	
-	def visit_Statements(self, node: Statements, hierachy: int):
-		res = CompileResult()
-		result: list[str] = []
+	def compile(self, ast):
+		result = CompileResult()
 
-		for line in node.body:
-			line_res = res.register(self.visit(line, 1))
-			if res.error: return res
+		try:
+			self.generate_code(ast, is_top_level=True)
+			self.instructions.append("HALT")  # Ensure program ends with HALT
+			result.success(self.instructions)
+		except Exception as e:
+			result.fail(CompilationError(ast.start_pos, ast.end_pos, str(e)))
+		return result
 
-			result += line_res
-		
-		if result[-1].startswith("LDIA "): result += ["COMP A D"]
-		return res.success(result + ["LDIA 0", "COMP D M"])
+	def generate_code(self, node, is_top_level=False):
+		if isinstance(node, Statements):
+			for stmt in node.body:
+				self.generate_code(stmt, is_top_level=True)
+		elif isinstance(node, BinaryOperation):
+			self.handle_binary_operation(node, is_top_level)
+		elif isinstance(node, UnaryOperation):
+			self.handle_unary_operation(node)
+		elif isinstance(node, IntLiteral):
+			self.handle_literal(node)
+		elif isinstance(node, Identifier):
+			self.handle_identifier(node)
+		elif isinstance(node, ConstDefinition):
+			self.const_definition(node)
+		else:
+			raise Exception(f"Unknown AST node type: {type(node)}")
 
-	def visit_IntLiteral(self, node: IntLiteral, hierachy: int):
-		res = CompileResult()
-		if node.value >= 2**15:
-			return res.fail(CompilationError(
-				node.start_pos, node.end_pos,
-				f"Cannot parse integer literal {node.value}"
-			))
-		return res.success([f"LDIA {node.value}"])
-	
-	def visit_BinaryOperation(self, node: BinaryOperation, hierachy: int):
-		res = CompileResult()
+	def handle_binary_operation(self, node: BinaryOperation, is_top_level):
+		"""
+		Handle binary operations by generating appropriate assembly code.
+		"""
+		self.generate_code(node.left, is_top_level=False)  # Evaluate left-hand side
 
-		left: list[str] = res.register(self.visit(node.left, hierachy + 1))
-		if res.error: return res
+		# if is_top_level or not self.instructions or not self.instructions[-1].startswith("COMP A D"):
+		if isinstance(node.left, (IntLiteral, Identifier)):
+			self.instructions.append("COMP A D")  # Store left-hand side in D for the top-level operation
 
-		result = left + ["COMP A D"]
+		self.generate_code(node.right, is_top_level=False)  # Evaluate right-hand side
 
-		right: list[str] = res.register(self.visit(node.right, hierachy + 1))
-		if res.error: return res
+		op_map = {
+			"ADD": "D+A",
+			"SUB": "D-A",
+			"AND": "D&A",
+			"OR": "D|A",
+			"XOR": "D^A"
+		}
 
-		if node.op.token_type == TT.ADD:
-			computation = "COMP D+A D"
-		
-		if node.op.token_type == TT.SUB:
-			computation = "COMP D-A D"
-		
-		if node.op.token_type == TT.AND:
-			computation = "COMP D&A D"
-		
-		if node.op.token_type == TT.OR:
-			computation = "COMP D|A D"
-		
-		if node.op.token_type == TT.XOR:
-			computation = "COMP D^A D"
+		operation = op_map.get(str(node.op.token_type))
+		if not operation:
+			raise Exception(f"Unsupported binary operation: {node.op}")
 
-		result += right + [computation]
-		return res.success(result)
-	
-	def visit_UnaryOperation(self, node: UnaryOperation, hierachy: int):
-		res = CompileResult()
+		self.instructions.append(f"COMP {operation} D")
 
-		value: list[str] = res.register(self.visit(node.value, hierachy + 1))
-		if res.error: return res
+	def handle_unary_operation(self, node):
+		"""
+		Handle unary operations by generating appropriate assembly code.
+		"""
+		if str(node.op.token_type) == "SUB":
+			self.generate_code(node.value)
+			self.instructions.append("COMP -A A")  # Negate the value in A
+		else:
+			self.generate_code(node.value)
 
-		result = value
-		if node.op.token_type == TT.SUB:
-			result += ["COMP -A D"]
-		
-		if node.op.token_type == TT.NOT:
-			result += ["COMP !A D"]
+			op_map = {
+				"NOT": "!A",
+				"INC": "A++",
+				"DEC": "A--",
+			}
 
-		return res.success(result)
-	
-	def visit_ConstDefinition(self, node: ConstDefinition, hierachy: int):
-		res = CompileResult()
+			operation = op_map.get(str(node.op.token_type))
+			if not operation:
+				raise Exception(f"Unsupported unary operation: {node.op}")
 
-		res.register(self.visit(node.value, hierachy + 1))
-		if res.error: return res
-		
-		self.constants[node.symbol.symbol] = node.value.value
-		return res.success([])
-	
-	def visit_Identifier(self, node: Identifier, hierachy: int):
-		res = CompileResult()
+			self.instructions.append(f"COMP {operation} A")
 
-		value = self.constants.get(node.symbol, None)
-		if value is None:
-			return res.fail(CompilationError(
-				node.start_pos, node.end_pos,
-				f"Symbol {node.symbol} does not exist."
-			))
-		return res.success([f"LDIA {value}"])
+	def handle_literal(self, node):
+		"""
+		Load a literal value into the A register.
+		"""
+		self.instructions.append(f"LDIA {node.value}")
+
+	def handle_identifier(self, node):
+		# Load a symbol's value into the A register.
+		if node.symbol not in self.symbol_table:
+			raise Exception(f"Undefined symbol: {node.symbol}")
+
+		value = self.symbol_table[node.symbol]
+		self.instructions.append(f"LDIA {value}")
+
+	def const_definition(self, node: ConstDefinition):
+		self.symbol_table[node.symbol.symbol] = node.value.value
+
+	# def generate_label(self):
+	# 	# Generate a unique label for jumps.
+	# 	label = f"LABEL_{self.label_count}"
+	# 	self.label_count += 1
+	# 	return label
