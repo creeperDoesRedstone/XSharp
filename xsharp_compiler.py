@@ -1,4 +1,4 @@
-from xsharp_parser import Statements, BinaryOperation, UnaryOperation, IntLiteral, Identifier, ConstDefinition, VarDeclaration
+from xsharp_parser import Statements, BinaryOperation, UnaryOperation, IntLiteral, Identifier, ConstDefinition, VarDeclaration, ForLoop
 from xsharp_helper import CompilationError
 
 ## COMPILE RESULT
@@ -25,19 +25,25 @@ class Compiler:
 		self.allocated_registers: set = set()
 		self.available_registers: set = {i for i in range(16)}
 		self.constants = {}
-		self.variables = {}
+		self.variables: dict[str, int] = {}
+
 		self.vars: int = 0
+		self.jumps : int = 0
 
 		self.a_reg = 0
 		self.d_reg = 0
 
-	def compile(self, ast):
+	def compile(self, ast, remove_that_one_line: bool = False):
 		result = CompileResult()
 
 		try:
 			self.generate_code(ast)
-			self.instructions.append("HALT")  # Ensure program ends with HALT
 			self.peephole_optimize()
+
+			if self.instructions[-1] == "COMP A D" and remove_that_one_line:
+				self.instructions = self.instructions[:-1]
+
+			self.instructions.append("HALT")  # Ensure program ends with HALT
 			return result.success(self.instructions)
 		
 		except Exception as e:
@@ -51,9 +57,16 @@ class Compiler:
 		optimized = []
 		for i in range(len(self.instructions) - 1):
 			curr, next_instr = self.instructions[i], self.instructions[i + 1]
+
 			# Remove redundant `LDIA` followed by another `LDIA`
 			if curr.startswith("LDIA") and next_instr.startswith("LDIA"):
 				continue
+
+			# Remove redundant double negation `-(-x)`
+			if i > 0 and curr == "COMP -D D" and (next_instr == "COMP -D D" or self.instructions[i - 1] == "COMP -D D"):
+				continue
+
+			# Append if no optimizations are needed
 			optimized.append(curr)
 		optimized.append(self.instructions[-1])
 		self.instructions = optimized
@@ -79,6 +92,12 @@ class Compiler:
 		self.allocated_registers.remove(register)
 		self.available_registers.add(register)
 
+	def make_jump_label(self):
+		self.instructions.append(f".jmp{self.jumps}")
+		self.jumps += 1
+
+		return self.jumps - 1
+
 	def noVisitMethod(self, node):
 		raise Exception(f"Unknown AST node type: {type(node).__name__}")
 
@@ -96,8 +115,10 @@ class Compiler:
 		}
 		
 		# Constant folding
+		folding = False
 		if isinstance(node.left, (IntLiteral, Identifier)) and isinstance(node.right, (IntLiteral, Identifier)):
 			folding = True
+			value: str
 
 			if isinstance(node.left, Identifier):
 				if node.left.symbol in self.constants:
@@ -105,10 +126,11 @@ class Compiler:
 				else: folding = False
 			else: value = f"{node.left.value}"
 
-			if folding: value += f"{op_map[str(node.op.token_type)][1]}"
+		if folding:
+			value += f"{op_map[str(node.op.token_type)][1]}"
 
-			if isinstance(node.right, Identifier):
-				if node.right.symbol in self.constants:
+			if isinstance(node.right, (IntLiteral, Identifier)):
+				if isinstance(node.right, Identifier) and node.right.symbol in self.constants:
 					value += f"{self.constants[node.right.symbol]}"
 				else: folding = False
 			else: value += f"{node.right.value}"
@@ -119,7 +141,6 @@ class Compiler:
 				return eval(value)
 
 		# Recursively fold constants
-
 		start_pos = len(self.instructions)
 
 		left = self.generate_code(node.left)
@@ -233,3 +254,16 @@ class Compiler:
 			"COMP D M"
 		] # Store result in D register into memory
 		self.vars += 1
+
+	def visitForLoop(self, node: ForLoop):
+		# Check if identifier is a variable
+		if node.identifier not in self.variables:
+			raise Exception(f"Symbol {node.identifier} is not defined.")
+		
+		# Set iterator to start value
+		location = self.variables[node.identifier]
+		self.instructions += [f"LDIA {node.start}", "COMP A D", f"LDIA {location}", "COMP M D"]
+		jump: int = self.make_jump_label()
+
+		self.generate_code(node.body)
+		self.instructions += [f"LDIA {node.step}", "COMP D+A D", f"LDIA {location}", "COMP M D", f"LDIA {node.end}", "COMP A-D D", f"LDIA .jmp{jump}", "COMP D JLT"]
