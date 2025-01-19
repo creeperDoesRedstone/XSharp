@@ -21,7 +21,8 @@ Constants are defined using the `define` keyword:
 ```
 define identifier value
 ```
-From that point, the compiler will replace all instances of the constant with a number.
+From that point, the compiler will replace all instances of the constant with its defined value.
+
 Variables are defined using the `var` keyword:
 ```
 var identifier expression
