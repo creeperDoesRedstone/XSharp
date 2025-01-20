@@ -318,6 +318,6 @@ class Compiler:
 			f"LDIA {node.end} // End value (.jmp{jump})",
 			"COMP A-D D",
 			f"LDIA .jmp{jump}",
-			"COMP D JLT"
+			"COMP D JLT" if node.end > node.start else "COMP D JGT"
 		]
 		self.a_reg = node.end
