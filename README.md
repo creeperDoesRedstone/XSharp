@@ -3,7 +3,7 @@
 This is a programming language for creeperdoesredstone's computer - Xenon.
 
 ## Syntax
-### Operations
+### `Operations`
 ```
 value1 + value2 // Addition
 value1 - value2 // Subtraction
@@ -16,7 +16,7 @@ value++         // Increment
 value--         // Decrement
 ```
 
-### Variables and constants
+### `Variables and constants`
 Constants are defined using the `define` keyword:
 ```
 define identifier value
@@ -33,7 +33,7 @@ Unlike constants, variables can be changed using the `:` operator:
 identifier: expression
 ```
 
-### Loops
+### `Loops`
 For loops have `start`, `end`, and `step` values:
 ```
 for identifier start: expr end: expr step: expr { <body> }
