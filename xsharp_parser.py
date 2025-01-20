@@ -158,7 +158,7 @@ class Parser:
 	def statement(self):
 		if self.current_token.token_type == TT.KEYWORD:
 			match self.current_token.value:
-				case "define": return self.const_definition()
+				case "const": return self.const_definition()
 				case "var": return self.var_declaration()
 				case "for": return self.for_loop()
 
