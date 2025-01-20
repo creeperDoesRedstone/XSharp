@@ -49,35 +49,51 @@ JUMPS = {
 
 def assemble(ftxt: str):
 	try:
-		binary_file = []
-		file_text = ftxt
-		for i in range(16):
+		binary_file: list[str] = []
+		labels: dict[str, int] = {}
+		skips: int = 0
+
+		file_text: str = ftxt
+		for i in range(16): # Remove register labels r0 - r15
 			file_text = file_text.replace(f"r{i}", f"{i}")
 
 		for line_num, line in enumerate(file_text.splitlines()):
-			try: comment_index = line.index("//")
-			except: pass
-			else: line = line[:comment_index]
+			line = line.strip()
 
-			if line.strip() == "": continue
+			try:
+				comment_index = line.index("//")
+			except:
+				pass
+			else:
+				line = line[:comment_index] # Remove comments
+
+			if line.strip() == "":
+				binary_file.append("0" * 16) # NOOP
+				continue # Skip empty lines
 
 			ln = line.strip().split(" ")
 			inst = ln[0]
 
 			match inst:
-				case "NOOP":
+				case "NOOP": # No operation
 					if len(ln) != 1: raise SyntaxError(f"Line {line_num + 1}: Expected 0 arguments for instruction NOOP, found {len(ln) - 1} arguments instead.")
 					binary_file.append("0" * 16)
 				
-				case "HALT":
+				case "HALT": # Halts the execution of the program
 					if len(ln) != 1: raise SyntaxError(f"Line {line_num + 1}: Expected 0 arguments for instruction HALT, found {len(ln) - 1} arguments instead.")
 					binary_file.append("0" * 15 + "1")
 				
 				case "LDIA": # Load immediate value into A register
 					if len(ln) != 2: raise SyntaxError(f"Line {line_num + 1}: Expected 1 argument for instruction LDIA, found {len(ln) - 1} arguments instead.")
 
-					value = bin(int(ln[1]))[2:].zfill(14)
-					binary_file.append(f"10{value}")
+					immediate = ln[1]
+					if immediate in labels: immediate = labels[immediate]
+
+					try:
+						value = int(immediate)
+					except ValueError:
+						return ValueError(f"Label '{immediate}' unbound.")
+					binary_file.append(f"10{bin(value)[2:].zfill(14)}")
 				
 				case "COMP": # Compute ALU instruction
 					if len(ln) not in (2, 3, 4): raise SyntaxError(f"Line {line_num + 1}: Expected 1 - 3 arguments for instruction COMP, found {len(ln) - 1} arguments instead.")
@@ -98,9 +114,16 @@ def assemble(ftxt: str):
 					binary_file.append(f"11{bin(code)[2:].zfill(8)}{''.join(dest)}{bin(jump)[2:].zfill(3)}")
 
 				case _:
-					raise NotImplementedError(f"Unknown instruction: {inst}.")
-			
+					if inst.startswith("."): # Label
+						if len(ln) != 1:
+							raise SyntaxError(f"Expected 0 arguments for label statment, found {len(ln) - 1} arguments instead.")
 
+						labels[inst] = line_num - skips
+						skips += 1
+					
+					else:
+						raise NotImplementedError(f"Unknown instruction: {inst}.")
+			
 		return binary_file
 
 	except SyntaxError as e: return e
