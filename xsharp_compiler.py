@@ -38,12 +38,11 @@ class Compiler:
 
 		try:
 			self.generate_code(ast)
-			self.peephole_optimize()
-
 			if self.instructions[-1] == "COMP A D" and remove_that_one_line:
 				self.instructions = self.instructions[:-1]
 
 			self.instructions.append("HALT")  # Ensure program ends with HALT
+			self.peephole_optimize()
 			return result.success(self.instructions)
 		
 		except Exception as e:
@@ -55,6 +54,7 @@ class Compiler:
 
 	def peephole_optimize(self):
 		optimized = []
+
 		for i in range(len(self.instructions) - 1):
 			curr, next_instr = self.instructions[i], self.instructions[i + 1]
 
@@ -63,7 +63,9 @@ class Compiler:
 				continue
 
 			# Remove redundant double negation `-(-x)`
-			if i > 0 and curr == "COMP -D D" and (next_instr == "COMP -D D" or self.instructions[i - 1] == "COMP -D D"):
+			check_next = curr + next_instr == "COMP -D DCOMP -D D"
+			check_prev = i > 0 and curr + self.instructions[i - 1] == "COMP -D DCOMP -D D"
+			if check_next or check_prev:
 				continue
 
 			# Append if no optimizations are needed
@@ -138,6 +140,7 @@ class Compiler:
 			if folding:
 				self.instructions.append(f"LDIA {eval(value)}")
 				self.instructions.append(f"COMP A D")
+				self.a_reg = eval(value)
 				return eval(value)
 
 		# Recursively fold constants
@@ -153,19 +156,27 @@ class Compiler:
 		reg2 = tuple(self.available_registers - self.allocated_registers)[0]
 		self.allocate_register(reg2)
 
+		# Fold if necessary
 		if isinstance(left, int) and isinstance(right, int):
 			value = f"{left}"
 			value += f"{op_map[str(node.op.token_type)][1]}"
 			value += f"{right}"
 
 			self.instructions = self.instructions[:start_pos]
-			self.instructions.append(f"LDIA {eval(value)}")
-			self.instructions.append(f"COMP A D")
+			result = eval(value)
+
+			self.a_reg = result
+
+			if result in (0, 1, -1): # Known values in the ISA
+				self.instructions.append(f"COMP {result} D")
+			else:
+				self.instructions.append(f"LDIA {result}")
+				self.instructions.append(f"COMP A D")
 
 			# Free temporary registers allocated earlier
 			self.free_register(reg1)
 			self.free_register(reg2)
-			return eval(value)
+			return result
 
 		# Unable to fold
 		operation = op_map.get(str(node.op.token_type))
@@ -227,12 +238,24 @@ class Compiler:
 		if node.symbol in self.constants:
 			# Value is already known, so just load it into A register
 			value = self.constants[node.symbol]
-			self.instructions += [f"LDIA {value}", "COMP A D"]
+			if value in (0, 1, -1): # Known values in the ISA
+				self.instructions.append(f"COMP {value} D")
+			
+			else:
+				self.instructions.append(f"LDIA {value}")
+				self.a_reg = value
+				self.instructions.append("COMP A D")
 			return value
 
 		else: # Value must be a variable, in this case it's value is not known
 			addr = self.variables[node.symbol]
-			self.instructions += [f"LDIA {addr}", "COMP M D"]
+
+			if self.instructions[-1] == "COMP D M" and self.a_reg == addr:
+				pass
+
+			else:
+				self.instructions += [f"LDIA {addr} // {node.symbol}", "COMP M D"]
+				self.a_reg = addr
 
 	def visitConstDefinition(self, node: ConstDefinition):
 		# Check if symbol is already defined
@@ -250,9 +273,10 @@ class Compiler:
 
 		self.variables[node.identifier] = 16 + self.vars # Memory addresses start at location 16
 		self.instructions += [
-			f"LDIA {16 + self.vars}",
+			f"LDIA {16 + self.vars} // {node.identifier}",
 			"COMP D M"
 		] # Store result in D register to memory
+		self.a_reg = 16 + self.vars
 		self.vars += 1
 
 	def visitAssignment(self, node: Assignment):
@@ -263,19 +287,37 @@ class Compiler:
 		addr = self.variables[node.identifier.symbol]
 		
 		self.instructions += [
-			f"LDIA {addr}",
+			f"LDIA {addr} // {node.identifier.symbol}",
 			"COMP D M"
 		] # Store result in D register to memory
+		self.a_reg = addr
 
 	def visitForLoop(self, node: ForLoop):
 		# Check if identifier is a variable
 		if node.identifier not in self.variables:
 			raise Exception(f"Symbol {node.identifier} is not defined.")
 		
-		# Set iterator to start value
-		location = self.variables[node.identifier]
-		self.instructions += [f"LDIA {node.start}", "COMP A D", f"LDIA {location}", "COMP M D"]
 		jump: int = self.make_jump_label()
 
+		# Set iterator to start value
+		location = self.variables[node.identifier]
+		self.instructions += [
+			f"LDIA {node.start} // Start value (.jmp{jump})",
+			"COMP A D",
+			f"LDIA {location} // {node.identifier}",
+			"COMP M D"
+		]
+		self.a_reg = node.start
+
 		self.generate_code(node.body)
-		self.instructions += [f"LDIA {node.step}", "COMP D+A D", f"LDIA {location}", "COMP M D", f"LDIA {node.end}", "COMP A-D D", f"LDIA .jmp{jump}", "COMP D JLT"]
+		self.instructions += [
+			f"LDIA {node.step} // Step value (.jmp{jump})",
+			"COMP D+A D",
+			f"LDIA {location} // {node.identifier}",
+			"COMP M D",
+			f"LDIA {node.end} // End value (.jmp{jump})",
+			"COMP A-D D",
+			f"LDIA .jmp{jump}",
+			"COMP D JLT"
+		]
+		self.a_reg = node.end
