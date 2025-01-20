@@ -47,9 +47,10 @@ Syntax: LDIA value
 ```
 ```
 COMP: Executes the ALU code, stores it into the specified destination(s), and jumps if necessary.
+Syntax: COMP code dest? jump?
+
 Destinations: Data (D) register, Address (A) register, Memory (M)
 Jumps: JLT, JEQ, JLE, JGT, JNE, JGE, JMP
-Syntax: COMP code dest? jump?
 ```
 ```
 NOOP: Nothing!
