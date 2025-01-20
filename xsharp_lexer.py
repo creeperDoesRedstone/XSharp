@@ -3,7 +3,8 @@ from xsharp_helper import Position, UnexpectedCharacter
 import string
 
 KEYWORDS = [
-	"define", "var", "for", "start", "end", "step"
+	"const", "var",
+	"for", "start", "end", "step"
 ]
 
 # Token types
