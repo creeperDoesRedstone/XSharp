@@ -38,3 +38,20 @@ For loops have `start`, `end`, and `step` values:
 ```
 for identifier start: expr end: expr step: expr { <body> }
 ```
+
+## Assembly
+There are currently 4 instructions: `LDIA`, `COMP`, `NOOP`, `HALT`:
+```
+LDIA: Loads a value into the A register.
+Syntax: LDIA value
+```
+```
+COMP: Executes the ALU code, stores it into the specified destination(s), and jumps if necessary.
+Destinations: Data (D) register, Address (A) register, Memory (M)
+Jumps: JLT, JEQ, JLE, JGT, JNE, JGE, JMP
+Syntax: COMP code dest? jump?
+```
+```
+NOOP: Nothing!
+HALT: Stops the execution of the program.
+```
