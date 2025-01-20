@@ -87,6 +87,11 @@ class Main(QMainWindow):
 		self.setWindowTitle("X# Compiler")
 		self.setFont(QFont(["JetBrains Mono", "Consolas"], 11))
 
+		self.compile_button = QPushButton(self)
+		self.compile_button.setGeometry(660, 40, 100, 40)
+		self.compile_button.setText("Compile")
+		self.compile_button.clicked.connect(self.compile)
+
 		panel_stylesheet: str = f'padding: 6px; font: 10pt "JetBrains Mono"'
 
 		self.xsharp_text = QTextEdit(self)
@@ -124,16 +129,14 @@ class Main(QMainWindow):
 				f"Line count: {len(self.result.toPlainText().splitlines())}"
 			)
 
-		self.compile()
 		return super().eventFilter(a0, a1)
 	
 	def compile(self):
-		if self.xsharp_text.toPlainText().strip() == "":
-			self.result.setText("")
-			return
-		
 		result, error = run("<terminal>", self.xsharp_text.toPlainText().strip())
-		if not error:
+		if error:
+			print(error)
+			self.result.setText("")
+		else:
 			self.result.setText("\n".join(result))
 
 if __name__ == "__main__":
