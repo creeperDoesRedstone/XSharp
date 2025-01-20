@@ -276,12 +276,21 @@ class Parser:
 				"Expected ':' after 'step' keyword."
 			))
 		self.advance()
-		if self.current_token.token_type != TT.NUM:
+		if self.current_token.token_type not in (TT.NUM, TT.SUB):
 			return res.fail(InvalidSyntax(
 				self.current_token.start_pos, self.current_token.end_pos,
 				"Expected a step value."
 			))
-		step = self.current_token.value
+		negative = self.current_token.token_type == TT.SUB
+		if negative:
+			self.advance()
+			if self.current_token.token_type != TT.NUM:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected a step value."
+				))
+
+		step = self.current_token.value * (-1)**negative
 		self.advance()
 
 		if self.current_token.token_type != TT.LBR:
