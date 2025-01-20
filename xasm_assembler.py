@@ -47,6 +47,13 @@ JUMPS = {
 	"JLT": 1, "JEQ": 2, "JLE": 3, "JGT": 4, "JNE": 5, "JGE": 6, "JMP": 7
 }
 
+def convert_to_bin(value: int):
+	if value >= 0: return bin(value)[2:].zfill(14)
+	
+	difference: int = 16384 + value
+
+	return f"{bin(difference)[2:].zfill(14)}"
+
 def assemble(ftxt: str):
 	try:
 		binary_file: list[str] = []
@@ -57,6 +64,13 @@ def assemble(ftxt: str):
 		for i in range(16): # Remove register labels r0 - r15
 			file_text = file_text.replace(f"r{i}", f"{i}")
 
+		# Preliminary scan
+		for line_num, line in enumerate(file_text.splitlines()):
+			if line.startswith(".") and len(line.strip().split()) == 1:
+				labels[line.strip()] = line_num - skips
+				skips += 1
+
+		# Assemble
 		for line_num, line in enumerate(file_text.splitlines()):
 			line = line.strip()
 
@@ -93,7 +107,9 @@ def assemble(ftxt: str):
 						value = int(immediate)
 					except ValueError:
 						return ValueError(f"Label '{immediate}' unbound.")
-					binary_file.append(f"10{bin(value)[2:].zfill(14)}")
+					
+
+					binary_file.append(f"10{convert_to_bin(value)}")
 				
 				case "COMP": # Compute ALU instruction
 					if len(ln) not in (2, 3, 4): raise SyntaxError(f"Line {line_num + 1}: Expected 1 - 3 arguments for instruction COMP, found {len(ln) - 1} arguments instead.")
@@ -114,14 +130,7 @@ def assemble(ftxt: str):
 					binary_file.append(f"11{bin(code)[2:].zfill(8)}{''.join(dest)}{bin(jump)[2:].zfill(3)}")
 
 				case _:
-					if inst.startswith("."): # Label
-						if len(ln) != 1:
-							raise SyntaxError(f"Expected 0 arguments for label statment, found {len(ln) - 1} arguments instead.")
-
-						labels[inst] = line_num - skips
-						skips += 1
-					
-					else:
+					if not (line.startswith(".") and len(ln) == 1):
 						raise NotImplementedError(f"Unknown instruction: {inst}.")
 			
 		return binary_file
@@ -192,6 +201,7 @@ class Main(QMainWindow):
 		self.file_text = QTextEdit(self)
 		self.file_text.setGeometry(40, 100, 360, 420)
 		self.file_text.setStyleSheet(panel_stylesheet)
+		self.file_text.setAcceptRichText(False)
 		self.highlighter = ASMSyntaxHighlighter(self.file_text.document())
 
 	def assemble(self):
