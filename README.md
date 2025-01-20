@@ -17,9 +17,9 @@ value--         // Decrement
 ```
 
 ### `Variables and constants`
-Constants are defined using the `define` keyword:
+Constants are defined using the `const` keyword:
 ```
-define identifier value
+const identifier value
 ```
 From that point, the compiler will replace all instances of the constant with its defined value.
 
