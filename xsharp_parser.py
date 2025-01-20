@@ -321,7 +321,7 @@ class Parser:
 		value = res.register(self.logical())
 		if res.error: return res
 
-		if self.current_token.token_type == TT.COL: # Assignment -> var: value
+		if self.current_token.token_type == TT.ASSIGN: # Assignment -> var = value
 			self.advance()
 			if not isinstance(value, Identifier):
 				return res.fail(InvalidSyntax(
