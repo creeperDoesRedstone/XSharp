@@ -28,9 +28,9 @@ Variables are defined using the `var` keyword:
 var identifier expression
 ```
 This allocates a memory address for the variable.
-Unlike constants, variables can be changed using the `:` operator:
+Unlike constants, variables can be changed using the `=` operator:
 ```
-identifier: expression
+identifier = expression
 ```
 
 ### `Loops`
