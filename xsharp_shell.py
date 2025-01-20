@@ -7,7 +7,7 @@ from PyQt6.QtCore import QRegularExpression
 
 MAX_INSTRUCTIONS = 2 ** 13
 
-def run(fn: str, ftxt: str):
+def run(fn: str, ftxt: str, remove_that_one_line: bool = False):
 	lexer = Lexer(fn, ftxt)
 	tokens, error = lexer.lex()
 	if error: return None, error
@@ -17,7 +17,7 @@ def run(fn: str, ftxt: str):
 	if ast.error: return None, ast.error
 
 	compiler = Compiler()
-	res = compiler.compile(ast.node)
+	res = compiler.compile(ast.node, remove_that_one_line)
 	return res.value, res.error
 
 class SyntaxHighlighter(QSyntaxHighlighter):
@@ -87,11 +87,6 @@ class Main(QMainWindow):
 		self.setWindowTitle("X# Compiler")
 		self.setFont(QFont(["JetBrains Mono", "Consolas"], 11))
 
-		self.compile_button = QPushButton(self)
-		self.compile_button.setGeometry(660, 40, 100, 40)
-		self.compile_button.setText("Compile")
-		self.compile_button.clicked.connect(self.compile)
-
 		panel_stylesheet: str = f'padding: 6px; font: 10pt "JetBrains Mono"'
 
 		self.xsharp_text = QTextEdit(self)
@@ -129,14 +124,16 @@ class Main(QMainWindow):
 				f"Line count: {len(self.result.toPlainText().splitlines())}"
 			)
 
+		self.compile()
 		return super().eventFilter(a0, a1)
 	
 	def compile(self):
-		result, error = run("<terminal>", self.xsharp_text.toPlainText().strip())
-		if error:
-			print(error)
+		if self.xsharp_text.toPlainText().strip() == "":
 			self.result.setText("")
-		else:
+			return
+		
+		result, error = run("<terminal>", self.xsharp_text.toPlainText().strip())
+		if not error:
 			self.result.setText("\n".join(result))
 
 if __name__ == "__main__":
