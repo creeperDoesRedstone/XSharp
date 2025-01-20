@@ -11,8 +11,9 @@ class TT(Enum):
 	ADD, SUB, INC, DEC,\
 	AND, OR, NOT, XOR,\
 	LPR, RPR, LBR, RBR, COL,\
+	ASSIGN,\
 	NUM, IDENTIFIER, KEYWORD, NEWLINE, EOF\
-	= range(18)
+	= range(19)
 
 	def __str__(self):
 		return super().__str__().removeprefix("TT.")
@@ -124,6 +125,11 @@ class Lexer:
 					tokens.append(Token(start_pos, self.pos, TT.DEC)) # Decrement
 				else: tokens.append(Token(start_pos, self.pos, TT.SUB)) # Subtraction
 			
+			elif self.current_char == "=":
+				start_pos = self.pos.copy()
+				self.advance()
+				tokens.append(Token(start_pos, self.pos, TT.ASSIGN))
+
 			elif self.current_char in string.digits:
 				# Make number
 				start_pos = self.pos.copy()
