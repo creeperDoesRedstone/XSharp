@@ -26,9 +26,10 @@ class Compiler:
 		self.available_registers: set = {i for i in range(16)}
 		self.constants = {}
 		self.variables: dict[str, int] = {}
+		self.jumps_dict: dict[int, int] = {}
 
 		self.vars: int = 0
-		self.jumps : int = 0
+		self.jumps: int = 0
 
 		self.a_reg = 0
 		self.d_reg = 0
@@ -96,9 +97,18 @@ class Compiler:
 
 	def make_jump_label(self):
 		self.instructions.append(f".jmp{self.jumps}")
+		self.jumps_dict[self.jumps] = len(self.instructions) - 1
 		self.jumps += 1
 
 		return self.jumps - 1
+
+	def load_immediate(self, value: int, comment: str = ""):
+		# Load an immediate value into the A register
+		if value in (0, 1, -1):
+			return
+		else:
+			self.instructions.append(f"LDIA {value} // {comment}")
+		self.a_reg = value
 
 	def noVisitMethod(self, node):
 		raise Exception(f"Unknown AST node type: {type(node).__name__}")
@@ -195,27 +205,42 @@ class Compiler:
 		self.free_register(reg2)
 
 	def visitUnaryOperation(self, node: UnaryOperation):
-		if str(node.op.token_type) == "SUB": # Negation
-			self.generate_code(node.value)
-			self.instructions.append("COMP -D D")  # Negate the value in A
-		
-		elif str(node.op.token_type) == "ADD": # Does nothing
-			pass
-		
-		else: # Other unary operations
-			self.generate_code(node.value)
-
-			op_map = {
-				"NOT": "!D",
-				"INC": "D++",
-				"DEC": "D--",
-			}
-
-			operation = op_map.get(str(node.op.token_type))
-			if not operation:
+		# Check if the operand is a constant
+		if isinstance(node.value, IntLiteral):
+			value = node.value.value
+			if str(node.op.token_type) == "SUB":  # Negation
+				folded_value = -value
+			elif str(node.op.token_type) == "ADD":  # Unary plus (does nothing)
+				folded_value = value
+			elif str(node.op.token_type) == "NOT":  # Logical NOT
+				folded_value = not value
+			elif str(node.op.token_type) == "INC":  # Increment
+				folded_value = value + 1
+			elif str(node.op.token_type) == "DEC":  # Decrement
+				folded_value = value - 1
+			else:
 				raise Exception(f"Unsupported unary operation: {node.op}")
 
-			self.instructions.append(f"COMP {operation} D")
+			# Append the folded value to instructions
+			self.instructions.append(f"LDIA {folded_value}")
+			self.instructions.append("COMP A D")
+			self.a_reg = folded_value
+			return folded_value
+		else:
+			# Generate code for the operand
+			self.generate_code(node.value)
+			if str(node.op.token_type) == "SUB":  # Negation
+				self.instructions.append("COMP -D D")  # Negate the value in A
+			elif str(node.op.token_type) == "ADD":  # Does nothing
+				return node.value.value
+			elif str(node.op.token_type) == "NOT":  # Logical NOT
+				self.instructions.append("COMP !D D")
+			elif str(node.op.token_type) == "INC":  # Increment
+				self.instructions.append("COMP D++ D")
+			elif str(node.op.token_type) == "DEC":  # Decrement
+				self.instructions.append("COMP D-- D")
+			else:
+				raise Exception(f"Unsupported unary operation: {node.op}")
 
 	def visitIntLiteral(self, node: IntLiteral):
 		if node.value in (0, 1, -1): # Known values in the ISA
@@ -262,7 +287,8 @@ class Compiler:
 		if node.symbol.symbol in {**self.constants, **self.variables}:
 			raise Exception(f"Symbol {node.symbol.symbol} is already defined.")
 		
-		self.constants[node.symbol.symbol] = node.value.value
+		expr = Compiler().generate_code(node.value)
+		self.constants[node.symbol.symbol] = expr
 
 	def visitVarDeclaration(self, node: VarDeclaration):
 		# Check if symbol is already defined
@@ -301,23 +327,28 @@ class Compiler:
 
 		# Set iterator to start value
 		location = self.variables[node.identifier]
-		self.instructions += [
-			f"LDIA {node.start} // Start value (.jmp{jump})",
-			"COMP A D",
-			f"LDIA {location} // {node.identifier}",
-			"COMP M D"
-		]
+		if node.start in (0, 1, -1):
+			self.instructions += [
+				f"LDIA {location} // {node.identifier}",
+				f"COMP {node.start} D"
+			]
+		else:
+			self.instructions += [
+				f"LDIA {node.start} // Start value (.jmp{jump})",
+				"COMP A D",
+				f"LDIA {location} // {node.identifier}",
+				"COMP D M"
+			]
 		self.a_reg = node.start
 
 		self.generate_code(node.body)
-		self.instructions += [
-			f"LDIA {node.step} // Step value (.jmp{jump})",
-			"COMP D+A D",
-			f"LDIA {location} // {node.identifier}",
-			"COMP M D",
-			f"LDIA {node.end} // End value (.jmp{jump})",
-			"COMP A-D D",
-			f"LDIA .jmp{jump}",
-			"COMP D JLT" if node.end > node.start else "COMP D JGT"
-		]
-		self.a_reg = node.end
+		
+		self.load_immediate(node.step, f"Step value (.jmp{jump})")
+		self.instructions.append(f"COMP A D") if node.step not in (0, 1, -1) else self.instructions.append(f"COMP {node.step} D")
+		self.load_immediate(location, f"{node.identifier}")
+		self.instructions.append("COMP D+M DM")
+		self.load_immediate(node.end, f"End value (.jmp{jump})")
+		self.instructions.append("COMP A-D D")
+		self.load_immediate(self.jumps_dict[jump], f"Jump to start (.jmp{jump})")
+		self.instructions.append("COMP D JGT") if node.step > 0 else self.instructions.append("COMP D JLT")
+		self.a_reg = self.jumps_dict[jump]
