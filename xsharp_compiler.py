@@ -102,7 +102,7 @@ class Compiler:
 
 		return self.jumps - 1
 
-	def load_immediate(self, value: int, comment: str = ""):
+	def load_immediate(self, value: int|str, comment: str = ""):
 		# Load an immediate value into the A register
 		if value in (0, 1, -1):
 			return
@@ -322,8 +322,6 @@ class Compiler:
 		# Check if identifier is a variable
 		if node.identifier not in self.variables:
 			raise Exception(f"Symbol {node.identifier} is not defined.")
-		
-		jump: int = self.make_jump_label()
 
 		# Set iterator to start value
 		location = self.variables[node.identifier]
@@ -334,12 +332,13 @@ class Compiler:
 			]
 		else:
 			self.instructions += [
-				f"LDIA {node.start} // Start value (.jmp{jump})",
+				f"LDIA {node.start} // Start value",
 				"COMP A D",
 				f"LDIA {location} // {node.identifier}",
 				"COMP D M"
 			]
 		self.a_reg = node.start
+		jump: int = self.make_jump_label()
 
 		self.generate_code(node.body)
 		
@@ -349,6 +348,6 @@ class Compiler:
 		self.instructions.append("COMP D+M DM")
 		self.load_immediate(node.end, f"End value (.jmp{jump})")
 		self.instructions.append("COMP A-D D")
-		self.load_immediate(self.jumps_dict[jump], f"Jump to start (.jmp{jump})")
+		self.load_immediate(f".jmp{jump}", f"Jump to start (.jmp{jump})")
 		self.instructions.append("COMP D JGT") if node.step > 0 else self.instructions.append("COMP D JLT")
 		self.a_reg = self.jumps_dict[jump]
