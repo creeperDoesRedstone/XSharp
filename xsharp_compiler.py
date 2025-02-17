@@ -1,4 +1,4 @@
-from xsharp_parser import Statements, BinaryOperation, UnaryOperation, IntLiteral, Identifier, ConstDefinition, VarDeclaration, Assignment, ForLoop
+from xsharp_parser import Statements, BinaryOperation, UnaryOperation, IntLiteral, Identifier, ConstDefinition, VarDeclaration, Assignment, ForLoop, WhileLoop
 from xsharp_helper import CompilationError
 
 ## COMPILE RESULT
@@ -44,6 +44,7 @@ class Compiler:
 
 			self.instructions.append("HALT")  # Ensure program ends with HALT
 			self.peephole_optimize()
+			
 			return result.success(self.instructions)
 		
 		except Exception as e:
@@ -95,8 +96,8 @@ class Compiler:
 		self.allocated_registers.remove(register)
 		self.available_registers.add(register)
 
-	def make_jump_label(self):
-		self.instructions.append(f".jmp{self.jumps}")
+	def make_jump_label(self, appending: bool = True):
+		if appending: self.instructions.append(f".jmp{self.jumps}")
 		self.jumps_dict[self.jumps] = len(self.instructions) - 1
 		self.jumps += 1
 
@@ -107,7 +108,9 @@ class Compiler:
 		if value in (0, 1, -1):
 			return
 		else:
-			self.instructions.append(f"LDIA {value} // {comment}")
+			if self.a_reg != value:
+				if comment: self.instructions.append(f"LDIA {value} // {comment}")
+				else: self.instructions.append(f"LDIA {value}")
 		self.a_reg = value
 
 	def noVisitMethod(self, node):
@@ -123,7 +126,13 @@ class Compiler:
 			"SUB": "D-M",
 			"AND": "D&M",
 			"OR":  "D|M",
-			"XOR": "D^M"
+			"XOR": "D^M",
+			"LT": "M-D",
+			"LE": "M-D",
+			"GT": "D-M",
+			"GE": "D-M",
+			"EQ": "D-M",
+			"NE": "D-M",
 		}
 		
 		# Constant folding
@@ -134,24 +143,28 @@ class Compiler:
 
 			if isinstance(node.left, Identifier):
 				if node.left.symbol in self.constants:
-					value = f"{self.constants[node.left.symbol]}"
+					left = f"{self.constants[node.left.symbol]}"
 				else: folding = False
-			else: value = f"{node.left.value}"
+			else: left = f"{node.left.value}"
 
 		if folding:
-			value += f"{op_map[str(node.op.token_type)][1]}"
-
 			if isinstance(node.right, (IntLiteral, Identifier)):
 				if isinstance(node.right, Identifier) and node.right.symbol in self.constants:
-					value += f"{self.constants[node.right.symbol]}"
+					right = f"{self.constants[node.right.symbol]}"
 				else: folding = False
-			else: value += f"{node.right.value}"
+			else: right = f"{node.right.value}"
 
 			if folding:
-				self.instructions.append(f"LDIA {eval(value)}")
-				self.instructions.append(f"COMP A D")
-				self.a_reg = eval(value)
-				return eval(value)
+				value = op_map[str(node.op.token_type)].replace("D", f"{left}").replace("M", f"{right}")
+				result = eval(value)
+
+				if result in (0, 1, -1): # Known values in the ISA
+					self.instructions.append(f"COMP {result} D")
+				else:
+					self.load_immediate(result)
+					self.instructions.append(f"COMP A D")
+				self.a_reg = result
+				return result
 
 		# Recursively fold constants
 		start_pos = len(self.instructions)
@@ -168,19 +181,17 @@ class Compiler:
 
 		# Fold if necessary
 		if isinstance(left, int) and isinstance(right, int):
-			value = f"{left}"
-			value += f"{op_map[str(node.op.token_type)][1]}"
-			value += f"{right}"
+			value = op_map[str(node.op.token_type)].replace("D", f"{left}").replace("M", f"{right}")
 
 			self.instructions = self.instructions[:start_pos]
-			result = eval(value)
+			result = int(eval(value))
 
 			self.a_reg = result
 
 			if result in (0, 1, -1): # Known values in the ISA
 				self.instructions.append(f"COMP {result} D")
 			else:
-				self.instructions.append(f"LDIA {result}")
+				self.load_immediate(result)
 				self.instructions.append(f"COMP A D")
 
 			# Free temporary registers allocated earlier
@@ -193,18 +204,24 @@ class Compiler:
 		if not operation:
 			raise Exception(f"Unsupported binary operation: {node.op}")
 
-		self.instructions += [
-			f"LDIA r{reg1}",
-			"COMP M D",
-			f"LDIA r{reg2}",
-			f"COMP {operation} D"
-		]
+		self.load_immediate(f"r{reg1}")
+		self.instructions.append("COMP M D")
+		self.load_immediate(f"r{reg2}")
+		self.instructions.append(f"COMP {operation} D")
 
 		# Free temporary registers allocated earlier
 		self.free_register(reg1)
 		self.free_register(reg2)
 
 	def visitUnaryOperation(self, node: UnaryOperation):
+		if str(node.op.token_type) == "AND": # Pointer (&identifier)
+			if not self.variables.get(node.value.symbol, None):
+				raise Exception(f"Variable '{node.value.symbol}' not found.")
+			
+			self.load_immediate(self.variables.get(node.value.symbol))
+			self.instructions.append("COMP A D")
+			return
+
 		# Check if the operand is a constant
 		if isinstance(node.value, IntLiteral):
 			value = node.value.value
@@ -213,7 +230,7 @@ class Compiler:
 			elif str(node.op.token_type) == "ADD":  # Unary plus (does nothing)
 				folded_value = value
 			elif str(node.op.token_type) == "NOT":  # Logical NOT
-				folded_value = not value
+				folded_value = ~value
 			elif str(node.op.token_type) == "INC":  # Increment
 				folded_value = value + 1
 			elif str(node.op.token_type) == "DEC":  # Decrement
@@ -228,7 +245,33 @@ class Compiler:
 			return folded_value
 		else:
 			# Generate code for the operand
-			self.generate_code(node.value)
+			start_pos = len(self.instructions)
+			value = self.generate_code(node.value)
+
+			if isinstance(value, int):
+				# Fold the operation
+				if str(node.op.token_type) == "SUB":
+					result = -value
+				elif str(node.op.token_type) == "ADD":
+					result = value
+				elif str(node.op.token_type) == "NOT":
+					result = ~value
+				elif str(node.op.token_type) == "INC":
+					result = value + 1
+				elif str(node.op.token_type) == "DEC":
+					result = value - 1
+				else:
+					raise Exception(f"Unsupported unary operation: {node.op}")
+				self.instructions = self.instructions[:start_pos]
+
+				if result in (0, 1, -1): # Known values in the ISA
+					self.instructions.append(f"COMP {result} D")
+				else:
+					self.instructions.append(f"LDIA {result}")
+					self.instructions.append("COMP A D")
+					self.a_reg = result
+				return result
+
 			if str(node.op.token_type) == "SUB":  # Negation
 				self.instructions.append("COMP -D D")  # Negate the value in A
 			elif str(node.op.token_type) == "ADD":  # Does nothing
@@ -351,3 +394,19 @@ class Compiler:
 		self.load_immediate(f".jmp{jump}", f"Jump to start (.jmp{jump})")
 		self.instructions.append("COMP D JGT") if node.step > 0 else self.instructions.append("COMP D JLT")
 		self.a_reg = self.jumps_dict[jump]
+
+	def visitWhileLoop(self, node: WhileLoop):
+		jump: int = self.make_jump_label()
+		end_loop: int = self.make_jump_label(appending=False)
+
+		self.generate_code(node.condition)
+		self.load_immediate(f".jmp{end_loop}")
+		self.a_reg = self.jumps_dict[end_loop]
+		self.instructions.append("COMP D JLE")
+		self.generate_code(node.body)
+		self.load_immediate(f".jmp{jump}")
+		self.instructions.append(f"COMP 0 JMP")
+		self.a_reg = self.jumps_dict[jump]
+
+		self.instructions.append(f".jmp{end_loop}")
+		self.a_reg = self.jumps_dict[end_loop]
