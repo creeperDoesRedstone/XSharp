@@ -47,7 +47,7 @@ class Main(QMainWindow):
 
 		self.step_button = QPushButton(self)
 		self.step_button.setGeometry(660, 40, 100, 40)
-		self.step_button.setText("Step")
+		self.step_button.setText("Run")
 		self.step_button.clicked.connect(lambda: self.run(self.file_text.toPlainText()))
 		self.program_counter = 0
 
