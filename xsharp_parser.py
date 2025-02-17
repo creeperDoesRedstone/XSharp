@@ -85,6 +85,13 @@ class ForLoop:
 		self.step = step
 		self.body = body
 
+class WhileLoop:
+	def __init__(self, start_pos: Position, end_pos: Position, condition, body: Statements):
+		self.start_pos = start_pos
+		self.end_pos = end_pos
+		self.condition = condition
+		self.body = body
+
 ## PARSE RESULT
 class ParseResult:
 	def __init__(self):
@@ -161,6 +168,7 @@ class Parser:
 				case "const": return self.const_definition()
 				case "var": return self.var_declaration()
 				case "for": return self.for_loop()
+				case "while": return self.while_loop()
 
 		return self.expression()
 
@@ -177,14 +185,8 @@ class Parser:
 				"Expected an identifier after 'define' keyword."
 			))
 		
-		value = res.register(self.literal())
+		value = res.register(self.expression())
 		if res.error: return res
-
-		if not isinstance(value, IntLiteral):
-			return res.fail(InvalidSyntax(
-				value.start_pos, value.end_pos,
-				"Expected an identifier after 'define' keyword."
-			))
 		
 		return res.success(ConstDefinition(identifier, value))
 
@@ -313,6 +315,34 @@ class Parser:
 
 		return res.success(ForLoop(start_pos, end_pos, identifier, start, end, step, body))
 
+	def while_loop(self):
+		res = ParseResult()
+		start_pos = self.current_token.start_pos
+		self.advance()
+
+		condition = res.register(self.expression())
+		if res.error: return res
+
+		if self.current_token.token_type != TT.LBR:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected '{' before while loop body."
+			))
+		self.advance()
+
+		body = res.register(self.statements(end=(TT.EOF, TT.RBR)))
+		if res.error: return res
+
+		if self.current_token.token_type != TT.RBR:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected '}' after while loop body."
+			))
+		end_pos = self.current_token.end_pos
+		self.advance()
+
+		return res.success(WhileLoop(start_pos, end_pos, condition, body))
+
 	def expression(self):
 		return self.assignment()
 	
@@ -354,18 +384,25 @@ class Parser:
 	
 	def logical(self):
 		return self.binary_op(self.additive, (TT.AND, TT.OR, TT.XOR))
-	
+
 	def additive(self):
 		return self.binary_op(self.unary, (TT.ADD, TT.SUB))
 	
 	def unary(self):
 		res = ParseResult()
 
-		if self.current_token.token_type in (TT.ADD, TT.SUB, TT.NOT):
+		if self.current_token.token_type in (TT.ADD, TT.SUB, TT.NOT, TT.AND):
 			tok = self.current_token
 			self.advance()
 			value = res.register(self.unary())
 			if res.error: return res
+
+			if tok.token_type == TT.AND and not isinstance(value, Identifier): # Address operator
+				return res.fail(InvalidSyntax(
+					tok.start_pos, tok.end_pos,
+					"Expected an identifier after '&'."
+				))
+
 			return res.success(UnaryOperation(tok, value))
 		
 		value = res.register(self.literal())
