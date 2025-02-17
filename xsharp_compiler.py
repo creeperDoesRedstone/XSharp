@@ -214,7 +214,7 @@ class Compiler:
 		self.free_register(reg2)
 
 	def visitUnaryOperation(self, node: UnaryOperation):
-		if str(node.op.token_type) == "AND": # Pointer (&identifier)
+		if str(node.op.token_type) == "AND": # Address operator (&identifier)
 			if not self.variables.get(node.value.symbol, None):
 				raise Exception(f"Variable '{node.value.symbol}' not found.")
 			
