@@ -1,4 +1,4 @@
-from xsharp_parser import Statements, BinaryOperation, UnaryOperation, IntLiteral, Identifier, ConstDefinition, VarDeclaration, Assignment, ForLoop, WhileLoop
+from xsharp_parser import *
 from xsharp_helper import CompilationError
 
 ## COMPILE RESULT
@@ -34,8 +34,16 @@ class Compiler:
 		self.a_reg = 0
 		self.d_reg = 0
 
+		self.x_addr = 2048
+		self.y_addr = 2049
+
+		self.input_addr = 2050
+
+		self.known_values = (-2, -1, 0, 1)
+
 	def compile(self, ast, remove_that_one_line: bool = False):
 		result = CompileResult()
+		self.make_bools: bool = False
 
 		try:
 			self.generate_code(ast)
@@ -97,7 +105,9 @@ class Compiler:
 		self.available_registers.add(register)
 
 	def make_jump_label(self, appending: bool = True):
-		if appending: self.instructions.append(f".jmp{self.jumps}")
+		if appending:
+			self.instructions.append(f".jmp{self.jumps}")
+		
 		self.jumps_dict[self.jumps] = len(self.instructions) - 1
 		self.jumps += 1
 
@@ -105,7 +115,7 @@ class Compiler:
 
 	def load_immediate(self, value: int|str, comment: str = ""):
 		# Load an immediate value into the A register
-		if value in (0, 1, -1):
+		if value in self.known_values:
 			return
 		else:
 			if self.a_reg != value:
@@ -149,16 +159,19 @@ class Compiler:
 
 		if folding:
 			if isinstance(node.right, (IntLiteral, Identifier)):
-				if isinstance(node.right, Identifier) and node.right.symbol in self.constants:
-					right = f"{self.constants[node.right.symbol]}"
-				else: folding = False
-			else: right = f"{node.right.value}"
+				if isinstance(node.right, Identifier):
+					if node.right.symbol in self.constants:
+						right = f"{self.constants[node.right.symbol]}"
+					else: folding = False
+				else:
+					right = f"{node.right.value}"
+			else: folding = False
 
 			if folding:
 				value = op_map[str(node.op.token_type)].replace("D", f"{left}").replace("M", f"{right}")
 				result = eval(value)
 
-				if result in (0, 1, -1): # Known values in the ISA
+				if result in self.known_values: # Known values in the ISA
 					self.instructions.append(f"COMP {result} D")
 				else:
 					self.load_immediate(result)
@@ -188,7 +201,7 @@ class Compiler:
 
 			self.a_reg = result
 
-			if result in (0, 1, -1): # Known values in the ISA
+			if result in self.known_values: # Known values in the ISA
 				self.instructions.append(f"COMP {result} D")
 			else:
 				self.load_immediate(result)
@@ -239,9 +252,11 @@ class Compiler:
 				raise Exception(f"Unsupported unary operation: {node.op}")
 
 			# Append the folded value to instructions
-			self.instructions.append(f"LDIA {folded_value}")
-			self.instructions.append("COMP A D")
-			self.a_reg = folded_value
+			if folded_value in self.known_values:
+				self.instructions.append(f"COMP {folded_value} D")
+			else:
+				self.load_immediate(folded_value)
+				self.instructions.append("COMP A D")
 			return folded_value
 		else:
 			# Generate code for the operand
@@ -264,7 +279,7 @@ class Compiler:
 					raise Exception(f"Unsupported unary operation: {node.op}")
 				self.instructions = self.instructions[:start_pos]
 
-				if result in (0, 1, -1): # Known values in the ISA
+				if result in self.known_values: # Known values in the ISA
 					self.instructions.append(f"COMP {result} D")
 				else:
 					self.instructions.append(f"LDIA {result}")
@@ -277,7 +292,11 @@ class Compiler:
 			elif str(node.op.token_type) == "ADD":  # Does nothing
 				return node.value.value
 			elif str(node.op.token_type) == "NOT":  # Logical NOT
-				self.instructions.append("COMP !D D")
+				if isinstance(node.value, BinaryOperation):
+					instruction: str = self.instructions[-1][5:-2]
+					self.instructions[-1] = f"COMP !({instruction}) D"
+				else:
+					self.instructions.append("COMP !D D")
 			elif str(node.op.token_type) == "INC":  # Increment
 				self.instructions.append("COMP D++ D")
 			elif str(node.op.token_type) == "DEC":  # Decrement
@@ -286,12 +305,11 @@ class Compiler:
 				raise Exception(f"Unsupported unary operation: {node.op}")
 
 	def visitIntLiteral(self, node: IntLiteral):
-		if node.value in (0, 1, -1): # Known values in the ISA
+		if node.value in self.known_values: # Known values in the ISA
 			self.instructions.append(f"COMP {node.value} D")
 		
 		else:
-			self.instructions.append(f"LDIA {node.value}")
-			self.a_reg = node.value
+			self.load_immediate(node.value)
 			self.instructions.append("COMP A D")
 		
 		return node.value
@@ -306,12 +324,11 @@ class Compiler:
 		if node.symbol in self.constants:
 			# Value is already known, so just load it into A register
 			value = self.constants[node.symbol]
-			if value in (0, 1, -1): # Known values in the ISA
+			if value in self.known_values: # Known values in the ISA
 				self.instructions.append(f"COMP {value} D")
 			
 			else:
-				self.instructions.append(f"LDIA {value}")
-				self.a_reg = value
+				self.load_immediate(value, node.symbol)
 				self.instructions.append("COMP A D")
 			return value
 
@@ -322,8 +339,8 @@ class Compiler:
 				pass
 
 			else:
-				self.instructions += [f"LDIA {addr} // {node.symbol}", "COMP M D"]
-				self.a_reg = addr
+				self.load_immediate(addr, node.symbol)
+				self.instructions += ["COMP M D"]
 
 	def visitConstDefinition(self, node: ConstDefinition):
 		# Check if symbol is already defined
@@ -341,11 +358,10 @@ class Compiler:
 		self.generate_code(node.value)
 
 		self.variables[node.identifier] = 16 + self.vars # Memory addresses start at location 16
+		self.load_immediate(16 + self.vars, f"{node.identifier}")
 		self.instructions += [
-			f"LDIA {16 + self.vars} // {node.identifier}",
 			"COMP D M"
 		] # Store result in D register to memory
-		self.a_reg = 16 + self.vars
 		self.vars += 1
 
 	def visitAssignment(self, node: Assignment):
@@ -355,40 +371,51 @@ class Compiler:
 		
 		addr = self.variables[node.identifier.symbol]
 		
+		self.load_immediate(addr, f"{node.identifier.symbol}")
 		self.instructions += [
-			f"LDIA {addr} // {node.identifier.symbol}",
 			"COMP D M"
 		] # Store result in D register to memory
-		self.a_reg = addr
 
 	def visitForLoop(self, node: ForLoop):
+		if not node.body.body:
+			# Loop is empty, so there is no need to execute it
+			if node.end in self.known_values:
+				self.instructions.append(f"COMP {node.end} D")
+			else:
+				self.load_immediate(node.end, f"End value")
+				self.instructions.append("COMP A D")
+			return
+
 		# Check if identifier is a variable
 		if node.identifier not in self.variables:
 			raise Exception(f"Symbol {node.identifier} is not defined.")
 
 		# Set iterator to start value
 		location = self.variables[node.identifier]
-		if node.start in (0, 1, -1):
-			self.instructions += [
-				f"LDIA {location} // {node.identifier}",
-				f"COMP {node.start} D"
-			]
+		if node.start in self.known_values:
+			self.load_immediate(location, "Start value")
+			self.instructions += [f"COMP {node.start} M"]
 		else:
-			self.instructions += [
-				f"LDIA {node.start} // Start value",
-				"COMP A D",
-				f"LDIA {location} // {node.identifier}",
-				"COMP D M"
-			]
-		self.a_reg = node.start
+			self.load_immediate(node.start)
+			self.instructions += ["COMP A D"]
+			self.load_immediate(location, "Start value")
+			self.instructions += [f"COMP D M"]
 		jump: int = self.make_jump_label()
 
 		self.generate_code(node.body)
-		
-		self.load_immediate(node.step, f"Step value (.jmp{jump})")
-		self.instructions.append(f"COMP A D") if node.step not in (0, 1, -1) else self.instructions.append(f"COMP {node.step} D")
-		self.load_immediate(location, f"{node.identifier}")
-		self.instructions.append("COMP D+M DM")
+
+		if node.step in self.known_values:
+			self.load_immediate(location, f"{node.identifier}")
+			match node.step:
+				case 0: self.instructions.append("COMP M D")
+				case 1: self.instructions.append("COMP M++ DM")
+				case -1: self.instructions.append("COMP M-- DM")
+		else:
+			self.load_immediate(node.step)
+			self.instructions.append(f"COMP A D // Step value (.jmp{jump})")
+			self.load_immediate(location, f"{node.identifier}")
+			self.instructions.append("COMP D+M DM")
+
 		self.load_immediate(node.end, f"End value (.jmp{jump})")
 		self.instructions.append("COMP A-D D")
 		self.load_immediate(f".jmp{jump}", f"Jump to start (.jmp{jump})")
@@ -410,3 +437,12 @@ class Compiler:
 
 		self.instructions.append(f".jmp{end_loop}")
 		self.a_reg = self.jumps_dict[end_loop]
+	
+	def visitPlotExpr(self, node: PlotExpr):
+		self.generate_code(node.x)
+		self.load_immediate(self.x_addr)
+		self.instructions.append("COMP D M")
+		self.generate_code(node.y)
+		self.load_immediate(self.y_addr)
+		self.instructions.append("COMP D M")
+		self.instructions.append(f"PLOT {node.value}")
