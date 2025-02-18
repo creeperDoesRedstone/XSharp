@@ -1,8 +1,10 @@
-# XSharp
+# Xenon's Languages
 ## Overview
-This is a programming language for creeperdoesredstone's computer - Xenon.
+This repository contains 2 programming languages:
+  - A high-level programming language called XSharp
+  - A low-level programming language called XAssembly
 
-## Syntax
+## XSharp
 ### `Operations`
 ```
 value1 + value2 // Addition
@@ -48,7 +50,7 @@ While loops will execute until the value of `condition` is 0:
 while condition { <body> }
 ```
 
-## Assembly
+## XAssembly
 There are currently 5 instructions: `LDIA`, `COMP`, `NOOP`, `HALT`, and `PLOT`:
 ```
 LDIA: Loads a value into the A register.
