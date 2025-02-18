@@ -4,7 +4,9 @@ import string
 
 KEYWORDS = [
 	"const", "var",
-	"for", "start", "end", "step"
+	"for", "start", "end", "step",
+	"while",
+	"plot"
 ]
 
 # Token types
