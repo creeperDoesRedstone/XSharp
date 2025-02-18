@@ -92,6 +92,12 @@ class WhileLoop:
 		self.condition = condition
 		self.body = body
 
+class PlotExpr:
+	def __init__(self, x, y, value: int):
+		self.x = x
+		self.y = y
+		self.value = value
+
 ## PARSE RESULT
 class ParseResult:
 	def __init__(self):
@@ -169,6 +175,7 @@ class Parser:
 				case "var": return self.var_declaration()
 				case "for": return self.for_loop()
 				case "while": return self.while_loop()
+				case "plot": return self.plot_expr()
 
 		return self.expression()
 
@@ -342,6 +349,31 @@ class Parser:
 		self.advance()
 
 		return res.success(WhileLoop(start_pos, end_pos, condition, body))
+
+	def plot_expr(self):
+		res = ParseResult()
+		self.advance()
+		
+		x = res.register(self.expression())
+		if res.error: return res
+
+		y = res.register(self.expression())
+		if res.error: return res
+
+		if self.current_token.token_type != TT.NUM:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected an integer for plot value."
+			))
+		if self.current_token.value not in (0, 1):
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected 0 or 1 for plot value."
+			))
+		value = self.current_token.value
+		self.advance()
+
+		return res.success(PlotExpr(x, y, value))
 
 	def expression(self):
 		return self.assignment()
