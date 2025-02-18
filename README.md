@@ -32,15 +32,24 @@ Unlike constants, variables can be changed using the `=` operator:
 ```
 identifier = expression
 ```
+The memory address of a variable can be accessed using the `&` operator:
+```
+&identifier
+```
 
 ### `Loops`
 For loops have `start`, `end`, and `step` values:
+Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
 ```
 for identifier start: expr end: expr step: expr { <body> }
 ```
+While loops will execute until the value of `condition` is 0:
+```
+while condition { <body> }
+```
 
 ## Assembly
-There are currently 4 instructions: `LDIA`, `COMP`, `NOOP`, `HALT`:
+There are currently 5 instructions: `LDIA`, `COMP`, `NOOP`, `HALT`, and `PLOT`:
 ```
 LDIA: Loads a value into the A register.
 Syntax: LDIA value
@@ -51,6 +60,10 @@ Syntax: COMP code dest? jump?
 
 Destinations: Data (D) register, Address (A) register, Memory (M)
 Jumps: JLT, JEQ, JLE, JGT, JNE, JGE, JMP
+```
+```
+PLOT: Plot the value (0 or 1) based on the x and y values stored in 2 ports.
+Syntax: PLOT value
 ```
 ```
 NOOP: Nothing!
