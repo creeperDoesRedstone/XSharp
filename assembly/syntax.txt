@@ -1,8 +1,9 @@
-LDIA - Loads a signed 14-bit immediate value into the A register
+LDIA - Loads a signed 14-bit immediate value into the A register.
 COMP - Executes the instruction code in the ALU, jump if necessary
        Jumps are based on the ALU output.
 NOOP - Nothing!
 HALT - Stops the program execution.
+PLOT - Plots the value at the pixel (x, y) stored in special addresses.
 
 Example program:
 
