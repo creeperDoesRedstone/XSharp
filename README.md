@@ -40,8 +40,7 @@ The memory address of a variable can be accessed using the `&` operator:
 ```
 
 ### `Loops`
-For loops have `start`, `end`, and `step` values:
-Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
+For loops have `start`, `end`, and `step` values. Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
 ```
 for identifier start: expr end: expr step: expr { <body> }
 ```
