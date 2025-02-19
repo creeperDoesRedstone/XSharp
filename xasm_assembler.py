@@ -1,6 +1,7 @@
-from PyQt6.QtWidgets import QMainWindow, QApplication, QLineEdit, QLabel, QPushButton, QTextEdit
+from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QTextEdit, QFileDialog
 from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
 from PyQt6.QtCore import QRegularExpression
+from xenon_vm import BinSyntaxHighlighter
 
 # Lookup table for codes
 # Format: A? NotD ZeroD And|Add NotOutPut ZeroA|M NotA|M DisableCarry
@@ -8,6 +9,7 @@ ALU_CODES = {
 	"0": 36,
 	"1": 126,
 	"-1": 44,
+	"-2": 118,
 	"D": 6,
 	"A": 224,
 	"M": 96,
@@ -18,11 +20,11 @@ ALU_CODES = {
 	"-A": 248,
 	"-M": 120,
 	"D++": 94,
-	"A++": 251,
-	"M++": 123,
+	"A++": 250,
+	"M++": 122,
 	"D--": 22,
-	"A--": 248,
-	"M--": 120,
+	"A--": 240,
+	"M--": 112,
 	"D+A": 144,
 	"D+M": 16,
 	"D-A": 216,
@@ -51,12 +53,11 @@ def convert_to_bin(value: int):
 	if value >= 0: return bin(value)[2:].zfill(14)
 	
 	difference: int = 16384 + value
-
 	return f"{bin(difference)[2:].zfill(14)}"
 
 def assemble(ftxt: str):
 	try:
-		binary_file: list[str] = []
+		binary_result: list[str] = []
 		labels: dict[str, int] = {}
 		skips: int = 0
 
@@ -66,7 +67,7 @@ def assemble(ftxt: str):
 
 		# Preliminary scan
 		for line_num, line in enumerate(file_text.splitlines()):
-			if line.startswith(".") and len(line.strip().split()) == 1:
+			if line.startswith(".") and " " not in line.strip():
 				labels[line.strip()] = line_num - skips
 				skips += 1
 
@@ -82,7 +83,7 @@ def assemble(ftxt: str):
 				line = line[:comment_index] # Remove comments
 
 			if line.strip() == "":
-				binary_file.append("0" * 16) # NOOP
+				binary_result.append("0" * 16) # NOOP
 				continue # Skip empty lines
 
 			ln = line.strip().split(" ")
@@ -91,11 +92,11 @@ def assemble(ftxt: str):
 			match inst:
 				case "NOOP": # No operation
 					if len(ln) != 1: raise SyntaxError(f"Line {line_num + 1}: Expected 0 arguments for instruction NOOP, found {len(ln) - 1} arguments instead.")
-					binary_file.append("0" * 16)
+					binary_result.append("0" * 16)
 				
 				case "HALT": # Halts the execution of the program
 					if len(ln) != 1: raise SyntaxError(f"Line {line_num + 1}: Expected 0 arguments for instruction HALT, found {len(ln) - 1} arguments instead.")
-					binary_file.append("0" * 15 + "1")
+					binary_result.append("0" * 13 + "100")
 				
 				case "LDIA": # Load immediate value into A register
 					if len(ln) != 2: raise SyntaxError(f"Line {line_num + 1}: Expected 1 argument for instruction LDIA, found {len(ln) - 1} arguments instead.")
@@ -109,7 +110,7 @@ def assemble(ftxt: str):
 						return ValueError(f"Label '{immediate}' unbound.")
 					
 
-					binary_file.append(f"10{convert_to_bin(value)}")
+					binary_result.append(f"{convert_to_bin(value)}10")
 				
 				case "COMP": # Compute ALU instruction
 					if len(ln) not in (2, 3, 4): raise SyntaxError(f"Line {line_num + 1}: Expected 1 - 3 arguments for instruction COMP, found {len(ln) - 1} arguments instead.")
@@ -127,13 +128,18 @@ def assemble(ftxt: str):
 							for i, location in enumerate("DAM"):
 								if location in ln[2]: dest[i] = "1"
 
-					binary_file.append(f"11{bin(code)[2:].zfill(8)}{''.join(dest)}{bin(jump)[2:].zfill(3)}")
+					binary_result.append(f"{bin(code)[2:].zfill(8)}{''.join(dest)}{bin(jump)[2:].zfill(3)}11")
+
+				case "PLOT": # Plot pixel to screen
+					if len(ln) != 2: raise SyntaxError(f"Line {line_num + 1}: Expected 1 argument for instruction NOOP, found {len(ln) - 1} arguments instead.")
+
+					binary_result.append(f"{ln[1]}{'0' * 12}101")
 
 				case _:
 					if not (line.startswith(".") and len(ln) == 1):
 						raise NotImplementedError(f"Unknown instruction: {inst}.")
 			
-		return binary_file
+		return binary_result
 
 	except SyntaxError as e: return e
 	except ValueError as e: return e
@@ -146,14 +152,16 @@ class ASMSyntaxHighlighter(QSyntaxHighlighter):
 
 		self.create_format("instruction", QColor(105, 205, 255), bold=True)
 		self.create_format("jump", QColor(255, 170, 0), bold=True)
-		self.create_format("location", QColor(255, 255, 0), bold=True)
+		self.create_format("register", QColor(170, 170, 255))
+		self.create_format("destination", QColor(255, 255, 0), bold=True)
 		self.create_format("operation", QColor(150, 150, 150))
 		self.create_format("comment", QColor(85, 170, 127), italic=True)
 		self.create_format("number", QColor(255, 135, 255))
 
-		self.add_rule(r"(D|A|M)", "location")
-		self.add_rule(r"\b(NOOP|HALT|LDIA|COMP)\b", "instruction")
+		self.add_rule(r"\b(D|A|M|DA|AM|DM|DAM)\b", "destination")
+		self.add_rule(r"\b(NOOP|HALT|LDIA|COMP|PLOT)\b", "instruction")
 		self.add_rule(r"\b(JLT|JEQ|JLE|JGT|JNE|JGE|JMP)\b", "jump")
+		self.add_rule(r"\b(r\d+)\b", "register")
 		self.add_rule(r"\b\d+(\.\d+)?\b", "number")
 		self.add_rule(r"(\+|-|&|\||~|\^)", "operation")
 		self.add_rule(r"//[^\n]*", "comment")
@@ -191,18 +199,31 @@ class Main(QMainWindow):
 		self.assemble_button.setText("Assemble!")
 		self.assemble_button.clicked.connect(self.assemble)
 
+		self.load_file_button = QPushButton(self)
+		self.load_file_button.setGeometry(40, 40, 100, 40)
+		self.load_file_button.setText("Load File")
+		self.load_file_button.clicked.connect(self.load_file)
+		self.fn = ""
+
 		panel_stylesheet: str = f'padding: 12px; font: 10pt "JetBrains Mono"'
 
 		self.result = QTextEdit(self)
 		self.result.setReadOnly(True)
 		self.result.setGeometry(400, 100, 360, 420)
 		self.result.setStyleSheet(panel_stylesheet)
+		self.result_highlighter = BinSyntaxHighlighter(self.result.document())
 
 		self.file_text = QTextEdit(self)
 		self.file_text.setGeometry(40, 100, 360, 420)
 		self.file_text.setStyleSheet(panel_stylesheet)
 		self.file_text.setAcceptRichText(False)
-		self.highlighter = ASMSyntaxHighlighter(self.file_text.document())
+		self.ftxt_highlighter = ASMSyntaxHighlighter(self.file_text.document())
+
+	def load_file(self):
+		self.fn, _ = QFileDialog.getOpenFileName(self, "Open File", "assembly", "XAsm Files (*.xasm)")
+		if self.fn:
+			with open(self.fn, "r") as file:
+				self.file_text.setPlainText(file.read())
 
 	def assemble(self):
 		result = assemble(self.file_text.toPlainText())
@@ -210,6 +231,11 @@ class Main(QMainWindow):
 			self.result.setText(f"{result}")
 		else:
 			self.result.setText("\n".join(result))
+
+			if self.fn:
+				with open(self.fn.replace(".xasm", ".bin").replace("assembly", "binary", 1), "w") as file:
+					file.write("\n".join(result))
+				self.fn = ""
 
 if __name__ == "__main__":
 	app = QApplication([])
