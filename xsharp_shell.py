@@ -6,8 +6,6 @@ from xsharp_parser import Parser
 from xsharp_compiler import Compiler
 from xasm_assembler import ASMSyntaxHighlighter
 
-MAX_INSTRUCTIONS = 2 ** 13
-
 def xs_compile(fn: str, ftxt: str, remove_that_one_line: bool = False):
 	lexer = Lexer(fn, ftxt)
 	tokens, error = lexer.lex()
