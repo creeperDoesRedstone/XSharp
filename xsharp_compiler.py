@@ -56,7 +56,7 @@ class Compiler:
 			return result.success(self.instructions)
 		
 		except Exception as e:
-			return result.fail(CompilationError(ast.start_pos, ast.end_pos, str(e)))
+			return result.fail(CompilationError(e.start_pos, e.end_pos, str(e)))
 
 	def generate_code(self, node):
 		method_name = f"visit{type(node).__name__}"
@@ -86,7 +86,10 @@ class Compiler:
 	def allocate_register(self, register: int):
 		# Allocates a temporary register
 		if len(self.allocated_registers) == 16:
-			raise Exception("Too many temporary registers! Refine your code!")
+			error = Exception("Too many temporary registers! Refine your code!")
+			error.start_pos = None
+			error.end_pos = None
+			raise error
 
 		self.allocated_registers.add(register)
 		self.available_registers.remove(register)
@@ -118,13 +121,16 @@ class Compiler:
 		if value in self.known_values:
 			return
 		else:
-			if self.a_reg != value:
+			if self.a_reg != value or self.instructions[-1].startswith("."):
 				if comment: self.instructions.append(f"LDIA {value} // {comment}")
 				else: self.instructions.append(f"LDIA {value}")
 		self.a_reg = value
 
 	def noVisitMethod(self, node):
-		raise Exception(f"Unknown AST node type: {type(node).__name__}")
+		error = Exception(f"Unknown AST node type: {type(node).__name__}")
+		error.start_pos = node.start_pos
+		error.end_pos = node.end_pos
+		raise error
 
 	def visitStatements(self, node: Statements):
 		for stmt in node.body:
@@ -135,14 +141,8 @@ class Compiler:
 			"ADD": "D+M",
 			"SUB": "D-M",
 			"AND": "D&M",
-			"OR":  "D|M",
+			"OR" : "D|M",
 			"XOR": "D^M",
-			"LT": "M-D",
-			"LE": "M-D",
-			"GT": "D-M",
-			"GE": "D-M",
-			"EQ": "D-M",
-			"NE": "D-M",
 		}
 		
 		# Constant folding
@@ -181,6 +181,7 @@ class Compiler:
 
 		# Recursively fold constants
 		start_pos = len(self.instructions)
+		temp_a_reg = self.a_reg
 
 		left = self.generate_code(node.left)
 		# Allocate a register for left side
@@ -191,6 +192,18 @@ class Compiler:
 		# Allocate a register for right side
 		reg2 = tuple(self.available_registers - self.allocated_registers)[0]
 		self.allocate_register(reg2)
+
+		# Optimizing +/- 1
+		if isinstance(node.left, Identifier) and node.left.symbol not in self.constants and right == 1:
+			if str(node.op.token_type) in ("ADD", "SUB"):
+				self.instructions = self.instructions[:start_pos]
+				self.a_reg = temp_a_reg
+				self.load_immediate(self.variables[node.left.symbol], node.left.symbol)
+				self.instructions.append("COMP M++ D" if str(node.op.token_type) == "ADD" else "COMP M-- D")
+				self.free_register(reg1)
+				self.free_register(reg2)
+
+				return
 
 		# Fold if necessary
 		if isinstance(left, int) and isinstance(right, int):
@@ -213,9 +226,12 @@ class Compiler:
 			return result
 
 		# Unable to fold
-		operation = op_map.get(str(node.op.token_type))
+		operation = op_map.get(str(node.op.token_type), None)
 		if not operation:
-			raise Exception(f"Unsupported binary operation: {node.op}")
+			error = Exception(f"Unsupported binary operation: {node.op}")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			raise error
 
 		self.load_immediate(f"r{reg1}")
 		self.instructions.append("COMP M D")
@@ -229,7 +245,10 @@ class Compiler:
 	def visitUnaryOperation(self, node: UnaryOperation):
 		if str(node.op.token_type) == "AND": # Address operator (&identifier)
 			if not self.variables.get(node.value.symbol, None):
-				raise Exception(f"Variable '{node.value.symbol}' not found.")
+				error = Exception(f"Variable '{node.value.symbol}' not found.")
+				error.start_pos = node.start_pos
+				error.end_pos = node.end_pos
+				raise error
 			
 			self.load_immediate(self.variables.get(node.value.symbol))
 			self.instructions.append("COMP A D")
@@ -249,7 +268,10 @@ class Compiler:
 			elif str(node.op.token_type) == "DEC":  # Decrement
 				folded_value = value - 1
 			else:
-				raise Exception(f"Unsupported unary operation: {node.op}")
+				error = Exception(f"Unsupported unary operation: {node.op}")
+				error.start_pos = node.start_pos
+				error.end_pos = node.end_pos
+				raise error
 
 			# Append the folded value to instructions
 			if folded_value in self.known_values:
@@ -276,7 +298,11 @@ class Compiler:
 				elif str(node.op.token_type) == "DEC":
 					result = value - 1
 				else:
-					raise Exception(f"Unsupported unary operation: {node.op}")
+					error = Exception(f"Unsupported unary operation: {node.op}")
+					error.start_pos = node.start_pos
+					error.end_pos = node.end_pos
+					raise error
+				
 				self.instructions = self.instructions[:start_pos]
 
 				if result in self.known_values: # Known values in the ISA
@@ -302,7 +328,10 @@ class Compiler:
 			elif str(node.op.token_type) == "DEC":  # Decrement
 				self.instructions.append("COMP D-- D")
 			else:
-				raise Exception(f"Unsupported unary operation: {node.op}")
+				error = Exception(f"Unsupported unary operation: {node.op}")
+				error.start_pos = node.start_pos
+				error.end_pos = node.end_pos
+				raise error
 
 	def visitIntLiteral(self, node: IntLiteral):
 		if node.value in self.known_values: # Known values in the ISA
@@ -319,7 +348,10 @@ class Compiler:
 		symbols = {**self.constants, **self.variables}
 
 		if node.symbol not in symbols:
-			raise Exception(f"Undefined symbol: {node.symbol}")
+			error = Exception(f"Undefined symbol: {node.symbol}")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			raise error
 
 		if node.symbol in self.constants:
 			# Value is already known, so just load it into A register
@@ -345,7 +377,10 @@ class Compiler:
 	def visitConstDefinition(self, node: ConstDefinition):
 		# Check if symbol is already defined
 		if node.symbol.symbol in {**self.constants, **self.variables}:
-			raise Exception(f"Symbol {node.symbol.symbol} is already defined.")
+			error = Exception(f"Symbol {node.symbol.symbol} is already defined.")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			raise error
 		
 		expr = Compiler().generate_code(node.value)
 		self.constants[node.symbol.symbol] = expr
@@ -353,7 +388,10 @@ class Compiler:
 	def visitVarDeclaration(self, node: VarDeclaration):
 		# Check if symbol is already defined
 		if node.identifier in {**self.constants, **self.variables}:
-			raise Exception(f"Symbol {node.identifier} is already defined.")
+			error = Exception(f"Symbol {node.identifier} is already defined.")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			raise error
 
 		self.generate_code(node.value)
 
@@ -366,8 +404,18 @@ class Compiler:
 
 	def visitAssignment(self, node: Assignment):
 		self.generate_code(node.expr)
+
+		if node.identifier.symbol in self.constants:
+			error = Exception(f"Cannot assign to constant '{node.identifier.symbol}'.")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			raise error
+
 		if node.identifier.symbol not in self.variables:
-			raise Exception(f"Undefined symbol: {node.identifier.symbol}.")
+			error = Exception(f"Undefined symbol: {node.identifier.symbol}.")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			raise error
 		
 		addr = self.variables[node.identifier.symbol]
 		
@@ -388,7 +436,10 @@ class Compiler:
 
 		# Check if identifier is a variable
 		if node.identifier not in self.variables:
-			raise Exception(f"Symbol {node.identifier} is not defined.")
+			error = Exception(f"Symbol {node.identifier} is not defined.")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			raise error
 
 		# Set iterator to start value
 		location = self.variables[node.identifier]
@@ -440,9 +491,9 @@ class Compiler:
 	
 	def visitPlotExpr(self, node: PlotExpr):
 		self.generate_code(node.x)
-		self.load_immediate(self.x_addr)
+		self.load_immediate(self.x_addr, "X Port")
 		self.instructions.append("COMP D M")
 		self.generate_code(node.y)
-		self.load_immediate(self.y_addr)
+		self.load_immediate(self.y_addr, "Y Port")
 		self.instructions.append("COMP D M")
 		self.instructions.append(f"PLOT {node.value}")
