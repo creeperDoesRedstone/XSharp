@@ -3,6 +3,7 @@ from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
 from PyQt6.QtCore import QRegularExpression
 
 from xsharp_compiler import Compiler
+from screen_writer import write_screen
 
 MAX_INSTRUCTIONS = 2 ** 12
 
@@ -54,13 +55,25 @@ class Main(QMainWindow):
 		self.init_GUI()
 		self.init_memory()
 		self.init_screen(48, 28)
-	
+
 	def init_GUI(self):
-		self.step_button = QPushButton(self)
-		self.step_button.setGeometry(660, 40, 100, 40)
-		self.step_button.setText("Run")
-		self.step_button.clicked.connect(lambda: self.run(self.file_text.toPlainText()))
+		self.run_button = QPushButton(self)
+		self.run_button.setGeometry(660, 40, 100, 40)
+		self.run_button.setText("Run")
+		self.run_button.clicked.connect(lambda: self.run(self.file_text.toPlainText()))
 		self.program_counter = 0
+
+		self.step_button = QPushButton(self)
+		self.step_button.setGeometry(540, 40, 100, 40)
+		self.step_button.setText("Step")
+		self.step_button.clicked.connect(lambda: self.step(
+			self.file_text.toPlainText().strip().splitlines()
+		))
+
+		self.export_button = QPushButton(self)
+		self.export_button.setGeometry(420, 40, 100, 40)
+		self.export_button.setText("Export")
+		self.export_button.clicked.connect(lambda: write_screen(self.lit_pixels))
 
 		self.load_file_button = QPushButton(self)
 		self.load_file_button.setGeometry(40, 40, 100, 40)
@@ -74,7 +87,7 @@ class Main(QMainWindow):
 		self.file_text.setStyleSheet(panel_stylesheet)
 		self.file_text.setAcceptRichText(False)
 		self.highlighter = BinSyntaxHighlighter(self.file_text.document())
-	
+
 	def init_memory(self):
 		self.a_reg = QLabel(self)
 		self.a_reg.setGeometry(40, 100, 100, 40)
@@ -126,7 +139,7 @@ class Main(QMainWindow):
 			
 			self.program_counter = 0
 			self.current_inst.setText(f"Instruction: {self.program_counter}")
-	
+
 	def set_value(self, register: QLabel, value: int, kind: str):
 		register.setText(f"{kind}: {value}")
 		if kind == "A":
@@ -136,7 +149,7 @@ class Main(QMainWindow):
 			self.d_reg_value = value
 		elif kind == "M":
 			self.memory_value[self.a_reg_value] = value
-	
+
 	def step(self, PROM: list[str]):
 		NOOP = "0" * 16
 		HALT = "0000000000000100"
@@ -190,10 +203,14 @@ class Main(QMainWindow):
 			if dest[2] == "1":
 				self.set_value(self.memory, res, "M")
 
-			conditions = (res > 0) * 4 + (res == 0) * 2 + (res < 0)
-			jump = conditions & int(jumps, 2)
+			conditions = (res > 0, res == 0, res < 0)
+			jump = False
 
-			if jump > 0:
+			for i in range(3):
+				if int(jumps[i]) & int(conditions[i]):
+					jump = True
+
+			if jump:
 				self.program_counter = self.a_reg_value
 			else:
 				self.program_counter += 1
@@ -245,7 +262,7 @@ class Main(QMainWindow):
 			steps += 1
 			if max_steps != None and steps > max_steps:
 				return True # Timeout has occurred
-		
+
 		return False
 
 if __name__ == "__main__":
