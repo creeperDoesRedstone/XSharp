@@ -2,7 +2,6 @@ from xsharp_helper import InvalidSyntax, Position
 from xsharp_lexer import TT, Token
 
 ## NODES
-
 class Statements:
 	def __init__(self, start_pos: Position, end_pos: Position, body: list):
 		self.start_pos = start_pos
@@ -50,12 +49,17 @@ class UnaryOperation:
 		self.op = op
 		self.value = value
 		self.in_parentheses = False
+
+		self.start_pos = op.start_pos
+		self.end_pos = value.end_pos
 	
 	def __repr__(self):
 		return f"({self.op}, {self.value})"
 
 class ConstDefinition:
-	def __init__(self, symbol: Identifier, value: IntLiteral):
+	def __init__(self, symbol: Identifier, value: IntLiteral, start_pos: Position, end_pos: Position):
+		self.start_pos = start_pos
+		self.end_pos = end_pos
 		self.symbol = symbol
 		self.value = value
 	
@@ -63,7 +67,9 @@ class ConstDefinition:
 		return f"ConstDef[{self.symbol} -> {self.value}]"
 
 class VarDeclaration:
-	def __init__(self, identifier: str, value):
+	def __init__(self, identifier: str, value, start_pos: Position, end_pos: Position):
+		self.start_pos = start_pos
+		self.end_pos = end_pos
 		self.identifier = identifier
 		self.value = value
 
@@ -71,7 +77,9 @@ class VarDeclaration:
 		return f"VarDeclaration[{self.identifier}] -> {self.value}"
 
 class Assignment:
-	def __init__(self, identifier: Identifier, expr):
+	def __init__(self, identifier: Identifier, expr, start_pos: Position, end_pos: Position):
+		self.start_pos = start_pos
+		self.end_pos = end_pos
 		self.identifier = identifier
 		self.expr = expr
 
@@ -93,10 +101,12 @@ class WhileLoop:
 		self.body = body
 
 class PlotExpr:
-	def __init__(self, x, y, value: int):
+	def __init__(self, x, y, value: int, start_pos: Position, end_pos: Position):
 		self.x = x
 		self.y = y
 		self.value = value
+		self.start_pos = start_pos
+		self.end_pos = end_pos
 
 ## PARSE RESULT
 class ParseResult:
@@ -123,12 +133,12 @@ class Parser:
 		self.current_token = None
 		self.token_index = -1
 		self.advance()
-	
+
 	def advance(self):
 		self.token_index += 1
 		if self.token_index < len(self.tokens):
 			self.current_token = self.tokens[self.token_index]
-	
+
 	def parse(self):
 		res = ParseResult()
 
@@ -142,7 +152,7 @@ class Parser:
 			))
 
 		return res.success(ast)
-	
+
 	def statements(self, end=(TT.EOF, )):
 		res = ParseResult()
 		body = []
@@ -181,6 +191,7 @@ class Parser:
 
 	def const_definition(self):
 		res = ParseResult()
+		start_pos = self.current_token.start_pos
 		self.advance()
 
 		identifier = res.register(self.literal())
@@ -193,12 +204,14 @@ class Parser:
 			))
 		
 		value = res.register(self.expression())
+		end_pos = self.current_token.end_pos
 		if res.error: return res
 		
-		return res.success(ConstDefinition(identifier, value))
+		return res.success(ConstDefinition(identifier, value, start_pos, end_pos))
 
 	def var_declaration(self):
 		res = ParseResult()
+		start_pos = self.current_token.start_pos
 		self.advance()
 
 		if self.current_token.token_type != TT.IDENTIFIER:
@@ -211,6 +224,7 @@ class Parser:
 
 		expr = res.register(self.expression())
 		if res.error: return res
+		end_pos = self.current_token.end_pos
 
 		if self.current_token.token_type not in (TT.NEWLINE, TT.EOF):
 			return res.fail(InvalidSyntax(
@@ -218,7 +232,7 @@ class Parser:
 				"Expected a newline or EOF after variable declaration."
 			))
 		
-		return res.success(VarDeclaration(identifier, expr))
+		return res.success(VarDeclaration(identifier, expr, start_pos, end_pos))
 
 	def for_loop(self):
 		res = ParseResult()
@@ -352,6 +366,7 @@ class Parser:
 
 	def plot_expr(self):
 		res = ParseResult()
+		start_pos = self.current_token.start_pos
 		self.advance()
 		
 		x = res.register(self.expression())
@@ -371,16 +386,18 @@ class Parser:
 				"Expected 0 or 1 for plot value."
 			))
 		value = self.current_token.value
+		end_pos = self.current_token.end_pos
 		self.advance()
 
-		return res.success(PlotExpr(x, y, value))
+		return res.success(PlotExpr(x, y, value, start_pos, end_pos))
 
 	def expression(self):
 		return self.assignment()
-	
+
 	def assignment(self):
 		res = ParseResult()
-		value = res.register(self.logical())
+		start_pos = self.current_token.start_pos
+		value = res.register(self.comparison())
 		if res.error: return res
 
 		if self.current_token.token_type == TT.ASSIGN: # Assignment -> var = value
@@ -391,9 +408,10 @@ class Parser:
 					"Expected an identifier before ':'."
 				))
 			expr = res.register(self.expression())
+			end_pos = self.current_token.end_pos
 			if res.error: return res
 
-			return res.success(Assignment(value, expr))
+			return res.success(Assignment(value, expr, start_pos, end_pos))
 
 		return res.success(value)
 
@@ -413,13 +431,16 @@ class Parser:
 			left = BinaryOperation(left, op, right)
 		
 		return res.success(left)
-	
-	def logical(self):
+
+	def comparison(self):
+		return self.binary_op(self.bitwise, (TT.LT, TT.LE, TT.EQ, TT.NE, TT.GT, TT.GE))
+
+	def bitwise(self):
 		return self.binary_op(self.additive, (TT.AND, TT.OR, TT.XOR))
 
 	def additive(self):
 		return self.binary_op(self.unary, (TT.ADD, TT.SUB))
-	
+
 	def unary(self):
 		res = ParseResult()
 
@@ -446,7 +467,7 @@ class Parser:
 			return res.success(UnaryOperation(tok, value))
 		
 		return res.success(value)
-	
+
 	def literal(self):
 		res = ParseResult()
 		tok = self.current_token
