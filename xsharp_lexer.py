@@ -5,8 +5,7 @@ import string
 KEYWORDS = [
 	"const", "var",
 	"for", "start", "end", "step",
-	"while",
-	"plot"
+	"while", "plot"
 ]
 
 # Token types
@@ -14,9 +13,10 @@ class TT(Enum):
 	ADD, SUB, INC, DEC,\
 	AND, OR, NOT, XOR,\
 	LPR, RPR, LBR, RBR, COL,\
+	LT, LE, EQ, NE, GT, GE,\
 	ASSIGN,\
 	NUM, IDENTIFIER, KEYWORD, NEWLINE, EOF\
-	= range(19)
+	= range(25)
 
 	def __str__(self):
 		return super().__str__().removeprefix("TT.")
@@ -131,7 +131,38 @@ class Lexer:
 			elif self.current_char == "=":
 				start_pos = self.pos.copy()
 				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.ASSIGN))
+				if self.current_char == "=":
+					self.advance()
+					tokens.append(Token(start_pos, self.pos, TT.EQ))
+				else:
+					tokens.append(Token(start_pos, self.pos, TT.ASSIGN))
+			
+			elif self.current_char == "<":
+				start_pos = self.pos.copy()
+				self.advance()
+				if self.current_char == "=":
+					self.advance()
+					tokens.append(Token(start_pos, self.pos, TT.LE))
+				else:
+					tokens.append(Token(start_pos, self.pos, TT.LT))
+			
+			elif self.current_char == ">":
+				start_pos = self.pos.copy()
+				self.advance()
+				if self.current_char == "=":
+					self.advance()
+					tokens.append(Token(start_pos, self.pos, TT.GE))
+				else:
+					tokens.append(Token(start_pos, self.pos, TT.GT))
+
+			elif self.current_char == "!":
+				start_pos = self.pos.copy()
+				self.advance()
+				if self.current_char == "=":
+					self.advance()
+					tokens.append(Token(start_pos, self.pos, TT.NE))
+				else:
+					return None, UnexpectedCharacter(start_pos, self.pos, "'!'")
 
 			elif self.current_char in string.digits:
 				# Make number
@@ -155,12 +186,22 @@ class Lexer:
 				# Try to make a comment
 				start_pos = self.pos.copy()
 				self.advance()
-				if self.current_char != "/":
-					return None, UnexpectedCharacter(start_pos, self.pos, "'/'")
-				
-				self.advance()
-				while self.current_char is not None and self.current_char not in "\n\r":
+				if self.current_char == "/":
 					self.advance()
+					while self.current_char is not None and self.current_char not in "\n\r":
+						self.advance()
+				
+				elif self.current_char == "*":
+					self.advance()
+					while self.pos.index <= len(self.ftxt) - 2 and \
+					self.current_char + self.ftxt[self.pos.index + 1] != "*/":
+						self.advance()
+					
+					self.advance()
+					self.advance()
+				
+				else:
+					return None, UnexpectedCharacter(start_pos, self.pos, "'/'")
 			
 			else: # Unrecognized character
 				start_pos = self.pos.copy()
