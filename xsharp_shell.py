@@ -1,6 +1,8 @@
-from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
-from PyQt6.QtCore import QRegularExpression
-from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QTextEdit, QLabel, QFileDialog, QLineEdit
+from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor, QTextCursor
+from PyQt6.QtCore import QRegularExpression, Qt, QEvent
+from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog
+from PyQt6 import uic
+
 from xsharp_lexer import Lexer, KEYWORDS
 from xsharp_parser import Parser
 from xsharp_compiler import Compiler
@@ -64,51 +66,24 @@ class XSharpSyntaxHighlighter(SyntaxHighlighter):
 class Main(QMainWindow):
 	def __init__(self):
 		super().__init__()
-		self.setFixedSize(800, 600)
+		uic.loadUi("GUI/shell.ui", self)
 		self.setWindowTitle("X# Compiler")
-		self.setFont(QFont(["JetBrains Mono", "Consolas"], 11))
 
-		self.load_file_button = QPushButton(self)
-		self.load_file_button.setGeometry(40, 40, 100, 40)
-		self.load_file_button.setText("Load File")
 		self.load_file_button.clicked.connect(self.load_file)
 		self.fn = ""
 
-		self.file_name = QLineEdit(self)
-		self.file_name.setGeometry(180, 40, 440, 40)
-		self.file_name.setPlaceholderText("File name")
+		self.file_name.setPlaceholderText("File name...")
 
-		self.compile_button = QPushButton(self)
-		self.compile_button.setGeometry(660, 40, 100, 40)
-		self.compile_button.setText("Compile")
 		self.compile_button.clicked.connect(self.compile)
 
-		panel_stylesheet: str = f'padding: 6px; font: 10pt "JetBrains Mono"'
-
-		self.xsharp_text = QTextEdit(self)
-		self.xsharp_text.setGeometry(40, 100, 360, 420)
-		self.xsharp_text.setStyleSheet(panel_stylesheet)
 		self.xsharp_text_highlighter = XSharpSyntaxHighlighter(self.xsharp_text.document())
 		self.xsharp_text.installEventFilter(self)
-		self.xsharp_text.setTabStopDistance(31)
 		self.xsharp_text.setAcceptRichText(False)
 
-		self.line_count_xsharp = QLabel(self)
-		self.line_count_xsharp.setGeometry(40, 520, 360, 40)
-		self.line_count_xsharp.setFont(QFont(["JetBrains Mono", "Consolas"], 10))
-		self.line_count_xsharp.setText("Line count: 0")
-
-		self.result = QTextEdit(self)
 		self.result.setReadOnly(True)
-		self.result.setGeometry(400, 100, 360, 420)
-		self.result.setStyleSheet(panel_stylesheet)
-		self.result_highlighter = ASMSyntaxHighlighter(self.result.document())
 		self.result.installEventFilter(self)
 
-		self.line_count_result = QLabel(self)
-		self.line_count_result.setGeometry(400, 520, 360, 40)
-		self.line_count_result.setFont(QFont(["JetBrains Mono", "Consolas"], 10))
-		self.line_count_result.setText("Line count: 0")
+		self.result_highlighter = ASMSyntaxHighlighter(self.result.document())
 	
 	def load_file(self):
 		self.fn, _ = QFileDialog.getOpenFileName(self, "Open file", "programs", "X# Files (*.xs)")
@@ -120,21 +95,114 @@ class Main(QMainWindow):
 		with open(self.fn, "r") as f:
 			self.xsharp_text.setText(f.read())
 
-	def eventFilter(self, a0, a1):
-		if a0 == self.xsharp_text:
+	def eventFilter(self, source, event):
+		code_cursor: QTextCursor = self.xsharp_text.textCursor()
+		cursor_pos: int = code_cursor.position()
+		code: str = self.xsharp_text.toPlainText()
+
+		if source == self.xsharp_text and event.type() == QEvent.Type.KeyPress:
 			self.line_count_xsharp.setText(
 				f"Line count: {len(self.xsharp_text.toPlainText().splitlines())}"
 			)
+
+			if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_Slash:
+				if not code_cursor.hasSelection():
+					code_cursor.select(code_cursor.SelectionType.LineUnderCursor)
+
+				selection_start: int = code_cursor.selectionStart()
+				selection_end: int = code_cursor.selectionEnd()
+
+				# Normalize selection to full lines
+				code_cursor.setPosition(selection_start)
+				code_cursor.movePosition(code_cursor.MoveOperation.StartOfBlock, code_cursor.MoveMode.KeepAnchor)
+				selection_start = code_cursor.selectionStart()
+
+				code_cursor.setPosition(selection_end)
+				code_cursor.movePosition(code_cursor.MoveOperation.EndOfBlock, code_cursor.MoveMode.KeepAnchor)
+				selection_end = code_cursor.selectionEnd()
+
+				# Extract all lines
+				code_cursor.setPosition(selection_start)
+				code_cursor.setPosition(selection_end, code_cursor.MoveMode.KeepAnchor)
+				selected_text: str = code_cursor.selection().toPlainText()
+				lines: list[str] = selected_text.splitlines()
+
+				# Toggle comment for each line
+				for i, line_text in enumerate(lines):
+					line_text: str = line_text.strip()
+					if line_text.startswith("// "):
+						lines[i] = (line_text.lstrip().replace("// ", "", 1))
+					elif line_text.startswith("//"):
+						lines[i] = (line_text.lstrip().replace("//", "", 1))
+					else:
+						lines[i] = ("// " + line_text)
+				
+				# Update line
+				updated_text = '\n'.join(lines)
+				code_cursor.insertText(updated_text)
+				return True
+			
+			if event.key() == Qt.Key.Key_ParenLeft:
+				# Auto-complete parentheses
+				code_cursor.insertText('()')
+				code_cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter)
+				self.xsharp_text.setTextCursor(code_cursor)
+				return True
+			
+			if event.key() == Qt.Key.Key_ParenRight:
+				# Check if the character after the cursor is a right parenthesis
+				if cursor_pos > 0 and cursor_pos < len(code) and code[cursor_pos] == ')':
+					code_cursor.movePosition(QTextCursor.MoveOperation.Right)
+					self.xsharp_text.setTextCursor(code_cursor)
+					return True
+				return super().eventFilter(source, event)
+			
+			if event.key() == Qt.Key.Key_BraceLeft:
+				# Auto-complete braces
+				code_cursor.insertText('{}')
+				code_cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter)
+				self.xsharp_text.setTextCursor(code_cursor)
+				return True
+			
+			if event.key() == Qt.Key.Key_BraceRight:
+				# Check if the character after the cursor is a right brace
+				if cursor_pos > 0 and cursor_pos < len(code) and code[cursor_pos] == '}':
+					code_cursor.movePosition(QTextCursor.MoveOperation.Right)
+					self.xsharp_text.setTextCursor(code_cursor)
+					return True
+				return super().eventFilter(source, event)
+			
+			if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+				# Auto indentation
+				lines: list[str] = code.splitlines()
+				tabs_num: int = 0
+
+				for i in lines[code_cursor.blockNumber()]:
+					if i != "\t": break
+
+					tabs_num += 1
+
+				TAB = "\t"
+
+				if cursor_pos > 0 and cursor_pos < len(code) and code[cursor_pos - 1] + code[cursor_pos] == '{}':
+					code_cursor.insertText(f"\n{TAB * (tabs_num+1)}\n{TAB * (tabs_num)}")
+					
+					for _ in range(tabs_num + 1):
+						code_cursor.movePosition(QTextCursor.MoveOperation.Left)
+					
+					self.xsharp_text.setTextCursor(code_cursor)
+					return True
+				return super().eventFilter(source, event)
 		
-		if a0 == self.result:
+		if source == self.result:
 			self.line_count_result.setText(
 				f"Line count: {len(self.result.toPlainText().splitlines())}"
 			)
 
-		return super().eventFilter(a0, a1)
+		return super().eventFilter(source, event)
 	
 	def compile(self):
-		result, error = xs_compile("<terminal>", self.xsharp_text.toPlainText().strip())
+		result, error = xs_compile("<stdfile>", self.xsharp_text.toPlainText().strip())
 		if error:
 			print(error)
 			self.result.setText("")
