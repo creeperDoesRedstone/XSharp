@@ -177,6 +177,9 @@ class Main(QMainWindow):
 				lines: list[str] = code.splitlines()
 				tabs_num: int = 0
 
+				if code_cursor.blockNumber() >= len(lines):
+					return super().eventFilter(source, event)
+
 				for i in lines[code_cursor.blockNumber()]:
 					if i != "\t": break
 
