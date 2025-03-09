@@ -41,9 +41,12 @@ class Compiler:
 
 		self.known_values = (-2, -1, 0, 1)
 
-	def compile(self, ast, remove_that_one_line: bool = False):
+	def compile(self, ast: Statements, remove_that_one_line: bool = False):
 		result = CompileResult()
 		self.make_bools: bool = False
+
+		if not ast.body:
+			return result.success(["HALT"])
 
 		try:
 			self.generate_code(ast)
