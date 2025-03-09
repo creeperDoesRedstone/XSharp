@@ -24,7 +24,7 @@ class Compiler:
 		self.instructions: list[str] = []
 		self.allocated_registers: set = set()
 		self.available_registers: set = {i for i in range(16)}
-		self.constants = {}
+		self.constants: dict[str, int] = {"true": -1, "false": 0}
 		self.variables: dict[str, int] = {}
 		self.jumps_dict: dict[int, int] = {}
 
@@ -168,7 +168,15 @@ class Compiler:
 			else: folding = False
 
 			if folding:
-				value = op_map[str(node.op.token_type)].replace("D", f"{left}").replace("M", f"{right}")
+				op = op_map.get(str(node.op.token_type), None)
+
+				if op is None:
+					error = Exception(f"Unsupported binary operation: {node.op}")
+					error.start_pos = node.start_pos
+					error.end_pos = node.end_pos
+					raise error
+
+				value = op.replace("D", f"{left}").replace("M", f"{right}")
 				result = eval(value)
 
 				if result in self.known_values: # Known values in the ISA
