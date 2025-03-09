@@ -40,6 +40,9 @@ class BinaryOperation:
 		self.op = op
 		self.right = right
 		self.in_parentheses = False
+
+		self.start_pos = left.start_pos
+		self.end_pos = right.end_pos
 	
 	def __repr__(self):
 		return f"({self.left}, {self.op}, {self.right})"
