@@ -1,6 +1,6 @@
-from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor, QTextCursor
+from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor, QTextCursor, QClipboard
 from PyQt6.QtCore import QRegularExpression, Qt, QEvent
-from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog
+from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog, QTextEdit, QPushButton
 from PyQt6 import uic
 
 from xsharp_lexer import Lexer, KEYWORDS, DATA_TYPES
@@ -75,11 +75,14 @@ class Main(QMainWindow):
 
 		self.file_name.setPlaceholderText("File name...")
 
-		self.compile_button.clicked.connect(self.compile)
+		self.process_button.clicked.connect(self.compile)
+		self.process_button.clicked.connect(self.copy_to_clipboard)
+		self.process_button: QPushButton
 
-		self.xsharp_text_highlighter = XSharpSyntaxHighlighter(self.xsharp_text.document())
-		self.xsharp_text.installEventFilter(self)
-		self.xsharp_text.setAcceptRichText(False)
+		self.xsharp_text_highlighter = XSharpSyntaxHighlighter(self.file_text.document())
+		self.file_text.installEventFilter(self)
+		self.file_text.setAcceptRichText(False)
+		self.file_text: QTextEdit
 
 		self.result.setReadOnly(True)
 		self.result.installEventFilter(self)
@@ -94,17 +97,19 @@ class Main(QMainWindow):
 		self.file_name.setReadOnly(True)
 
 		with open(self.fn, "r") as f:
-			self.xsharp_text.setText(f.read())
+			self.file_text.setText(f.read())
 
 	def eventFilter(self, source, event):
-		code_cursor: QTextCursor = self.xsharp_text.textCursor()
+		code_cursor: QTextCursor = self.file_text.textCursor()
 		cursor_pos: int = code_cursor.position()
-		code: str = self.xsharp_text.toPlainText()
+		code: str = self.file_text.toPlainText()
 
-		if source == self.xsharp_text and event.type() == QEvent.Type.KeyPress:
-			self.line_count_xsharp.setText(
-				f"Line count: {len(self.xsharp_text.toPlainText().splitlines())}"
+		if source == self.file_text:
+			self.ftxt_line_count.setText(
+				f"Line count: {len(self.file_text.toPlainText().splitlines())}"
 			)
+		
+		if source == self.file_text and event.type() == QEvent.Type.KeyPress:
 
 			if event.modifiers() == Qt.KeyboardModifier.ControlModifier and event.key() == Qt.Key.Key_Slash:
 				if not code_cursor.hasSelection():
@@ -147,14 +152,14 @@ class Main(QMainWindow):
 				# Auto-complete parentheses
 				code_cursor.insertText('()')
 				code_cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter)
-				self.xsharp_text.setTextCursor(code_cursor)
+				self.file_text.setTextCursor(code_cursor)
 				return True
 			
 			if event.key() == Qt.Key.Key_ParenRight:
 				# Check if the character after the cursor is a right parenthesis
 				if cursor_pos > 0 and cursor_pos < len(code) and code[cursor_pos] == ')':
 					code_cursor.movePosition(QTextCursor.MoveOperation.Right)
-					self.xsharp_text.setTextCursor(code_cursor)
+					self.file_text.setTextCursor(code_cursor)
 					return True
 				return super().eventFilter(source, event)
 			
@@ -162,14 +167,14 @@ class Main(QMainWindow):
 				# Auto-complete braces
 				code_cursor.insertText('{}')
 				code_cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter)
-				self.xsharp_text.setTextCursor(code_cursor)
+				self.file_text.setTextCursor(code_cursor)
 				return True
 			
 			if event.key() == Qt.Key.Key_BraceRight:
 				# Check if the character after the cursor is a right brace
 				if cursor_pos > 0 and cursor_pos < len(code) and code[cursor_pos] == '}':
 					code_cursor.movePosition(QTextCursor.MoveOperation.Right)
-					self.xsharp_text.setTextCursor(code_cursor)
+					self.file_text.setTextCursor(code_cursor)
 					return True
 				return super().eventFilter(source, event)
 			
@@ -194,21 +199,26 @@ class Main(QMainWindow):
 					for _ in range(tabs_num + 1):
 						code_cursor.movePosition(QTextCursor.MoveOperation.Left)
 					
-					self.xsharp_text.setTextCursor(code_cursor)
+					self.file_text.setTextCursor(code_cursor)
 					return True
 				return super().eventFilter(source, event)
 		
 		if source == self.result:
-			self.line_count_result.setText(
+			self.result_line_count.setText(
 				f"Line count: {len(self.result.toPlainText().splitlines())}"
 			)
 
 		return super().eventFilter(source, event)
 	
+	def copy_to_clipboard(self):
+		text = self.result.toPlainText()
+		if text:
+			QApplication.clipboard().setText(text, QClipboard.Mode.Clipboard)
+	
 	def compile(self):
 		self.error.setText("")
 		self.result.setText("")
-		result, error = xs_compile("<stdfile>", self.xsharp_text.toPlainText().strip())
+		result, error = xs_compile("<shell>", self.file_text.toPlainText().strip())
 		if error:
 			self.error.setText(f"{error}")
 		else:
