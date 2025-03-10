@@ -1,2 +1,2 @@
-Add multiline comments
-Fix styles for assembler and VM
+Add highlighting for multiline comments
+Fix styles for VM
