@@ -51,17 +51,19 @@ class XSharpSyntaxHighlighter(SyntaxHighlighter):
 	def __init__(self, document):
 		super().__init__(document)
 
-		self.create_format("keyword", QColor(105, 205, 255), bold=True)
-		self.create_format("keyword2", QColor(255, 170, 0), bold=True)
-		self.create_format("operation", QColor(150, 150, 150))
-		self.create_format("comment", QColor(85, 170, 127), italic=True)
-		self.create_format("number", QColor(255, 135, 255))
+		self.create_format("keyword", QColor(213, 117, 157), bold=True)
+		self.create_format("keyword2", QColor(217, 101, 50), italic=True)
+		self.create_format("operation", QColor(213, 117, 157), bold=True)
+		self.create_format("brackets", QColor(247, 217, 27))
+		self.create_format("comment", QColor(98, 133, 139), italic=True)
+		self.create_format("number", QColor(85, 91, 239))
 
 		self.add_rule(r"\b" + r"\b|\b".join(KEYWORDS) + r"\b", "keyword")
 		self.add_rule(r"\b(start|end|step)\b", "keyword2")
 		self.add_rule(r"\b" + r"\b|\b".join(DATA_TYPES) + r"\b", "keyword2")
 		self.add_rule(r"\b\d+(\.\d+)?\b", "number")
-		self.add_rule(r"(\+|-|&|\||~|\^)", "operation")
+		self.add_rule(r"(\+|-|&|\||~|\^|=|:)", "operation")
+		self.add_rule(r"\(|\)|\{|\}|\[|\]", "brackets")
 		self.add_rule(r"//[^\n]*", "comment")
 
 class Main(QMainWindow):
@@ -178,6 +180,21 @@ class Main(QMainWindow):
 					return True
 				return super().eventFilter(source, event)
 			
+			if event.key() == Qt.Key.Key_BracketLeft:
+				# Auto-complete braces
+				code_cursor.insertText('[]')
+				code_cursor.movePosition(QTextCursor.MoveOperation.PreviousCharacter)
+				self.file_text.setTextCursor(code_cursor)
+				return True
+			
+			if event.key() == Qt.Key.Key_BracketRight:
+				# Check if the character after the cursor is a right brace
+				if cursor_pos > 0 and cursor_pos < len(code) and code[cursor_pos] == ']':
+					code_cursor.movePosition(QTextCursor.MoveOperation.Right)
+					self.file_text.setTextCursor(code_cursor)
+					return True
+				return super().eventFilter(source, event)
+
 			if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
 				# Auto indentation
 				lines: list[str] = code.splitlines()
@@ -193,7 +210,7 @@ class Main(QMainWindow):
 
 				TAB = "\t"
 
-				if cursor_pos > 0 and cursor_pos < len(code) and code[cursor_pos - 1] + code[cursor_pos] in ("{}", "()"):
+				if cursor_pos > 0 and cursor_pos < len(code) and code[cursor_pos - 1] + code[cursor_pos] in ("{}", "()", "[]"):
 					code_cursor.insertText(f"\n{TAB * (tabs_num+1)}\n{TAB * (tabs_num)}")
 					
 					for _ in range(tabs_num + 1):
