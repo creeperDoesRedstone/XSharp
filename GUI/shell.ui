@@ -57,7 +57,7 @@ QPushButton:hover {
      <string>Load file</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="compile_button">
+   <widget class="QPushButton" name="process_button">
     <property name="geometry">
      <rect>
       <x>660</x>
@@ -90,8 +90,11 @@ QPushButton:hover {
     <property name="styleSheet">
      <string notr="true">background-color: rgb(5, 5, 91);</string>
     </property>
+    <property name="placeholderText">
+     <string>File name...</string>
+    </property>
    </widget>
-   <widget class="QTextEdit" name="xsharp_text">
+   <widget class="QTextEdit" name="file_text">
     <property name="geometry">
      <rect>
       <x>40</x>
@@ -101,7 +104,7 @@ QPushButton:hover {
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">background-color: rgb(5, 5, 91);
+     <string notr="true">background-color: rgb(7, 7, 130);
 color: white;
 padding: 6px;
 font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
@@ -114,9 +117,9 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
     <property name="geometry">
      <rect>
       <x>400</x>
-      <y>249</y>
+      <y>210</y>
       <width>360</width>
-      <height>271</height>
+      <height>310</height>
      </rect>
     </property>
     <property name="styleSheet">
@@ -132,7 +135,7 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
      <double>31.000000000000000</double>
     </property>
    </widget>
-   <widget class="QLabel" name="line_count_xsharp">
+   <widget class="QLabel" name="ftxt_line_count">
     <property name="geometry">
      <rect>
       <x>40</x>
@@ -145,7 +148,7 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
      <string>Line count: 0</string>
     </property>
    </widget>
-   <widget class="QLabel" name="line_count_result">
+   <widget class="QLabel" name="result_line_count">
     <property name="geometry">
      <rect>
       <x>400</x>
@@ -164,7 +167,7 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
       <x>400</x>
       <y>100</y>
       <width>360</width>
-      <height>151</height>
+      <height>111</height>
      </rect>
     </property>
     <property name="styleSheet">
