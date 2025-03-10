@@ -23,7 +23,16 @@ class IntLiteral:
 	
 	def __repr__(self):
 		return f"Literal[{self.value}]"
+
+class ArrayLiteral:
+	def __init__(self, elements: list, start_pos: Position, end_pos: Position):
+		self.elements = elements
+		self.start_pos = start_pos
+		self.end_pos = end_pos
 	
+	def __repr__(self):
+		return "Array[" + ", ".join([f"{element}" for element in self.elements]) + "]"
+
 class Identifier:
 	def __init__(self, symbol: str, start_pos: Position, end_pos: Position):
 		self.symbol = symbol
@@ -70,11 +79,13 @@ class ConstDefinition:
 		return f"ConstDef[{self.symbol} -> {self.value}]"
 
 class VarDeclaration:
-	def __init__(self, identifier: str, value, data_type: str, start_pos: Position, end_pos: Position):
+	def __init__(self, identifier: str, value, data_type: str, start_pos: Position, end_pos: Position, length: int|None):
 		self.start_pos = start_pos
 		self.end_pos = end_pos
 		self.identifier = identifier
 		self.value = value
+		self.data_type = data_type
+		self.length = length
 
 	def __repr__(self):
 		return f"VarDeclaration[{self.identifier}] -> {self.value}"
@@ -215,6 +226,7 @@ class Parser:
 	def var_declaration(self):
 		res = ParseResult()
 		start_pos = self.current_token.start_pos
+		length: int|None = None
 		self.advance()
 
 		if self.current_token.token_type != TT.IDENTIFIER:
@@ -240,6 +252,24 @@ class Parser:
 		data_type = self.current_token.value
 		self.advance()
 
+		if self.current_token.token_type == TT.LSQ: # Array
+			self.advance()
+			
+			if self.current_token.token_type != TT.NUM:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected a number for the array length."
+				))
+			length = self.current_token.value
+			self.advance()
+
+			if self.current_token.token_type != TT.RSQ:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected ']' after array length."
+				))
+			self.advance()
+
 		if self.current_token.token_type != TT.ASSIGN:
 			return res.fail(InvalidSyntax(
 				self.current_token.start_pos, self.current_token.end_pos,
@@ -257,7 +287,7 @@ class Parser:
 				"Expected a newline or EOF after variable declaration."
 			))
 		
-		return res.success(VarDeclaration(identifier, expr, data_type, start_pos, end_pos))
+		return res.success(VarDeclaration(identifier, expr, data_type, start_pos, end_pos, length))
 
 	def for_loop(self):
 		res = ParseResult()
@@ -515,4 +545,29 @@ class Parser:
 			expr.in_parentheses = True
 			return res.success(expr)
 
-		return res.fail(InvalidSyntax(tok.start_pos, tok.end_pos, f"Expected a number, an identifier or '(', found token '{tok.token_type}' instead."))
+		if tok.token_type == TT.LBR:
+			elements = []
+			
+			# First element
+			expr = res.register(self.comparison())
+			if res.error: return res
+			elements.append(expr)
+
+			while self.current_token.token_type == TT.COMMA:
+				self.advance()
+				expr = res.register(self.comparison())
+				if res.error: return res
+				elements.append(expr)
+			
+			if self.current_token.token_type != TT.RBR:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected ',' or '}' after array elements."
+				))
+			end_token = self.current_token
+
+			self.advance()
+			return res.success(ArrayLiteral(elements, tok.start_pos, end_token.end_pos))
+
+		LBR = "{"
+		return res.fail(InvalidSyntax(tok.start_pos, tok.end_pos, f"Expected a number, an identifier, '(' or '{LBR}', found token '{tok.token_type}' instead."))
