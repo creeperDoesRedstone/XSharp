@@ -26,6 +26,7 @@ class Compiler:
 		self.available_registers: set = {i for i in range(16)}
 		self.constants: dict[str, int] = {"true": -1, "false": 0}
 		self.variables: dict[str, int] = {}
+		self.arrays: dict[str, int] = {}
 		self.jumps_dict: dict[int, int] = {}
 
 		self.vars: int = 0
@@ -354,9 +355,18 @@ class Compiler:
 		
 		return node.value
 
+	def visitArrayLiteral(self, node: ArrayLiteral):
+		base_pointer = 16 + self.vars
+		for element in node.elements:
+			self.generate_code(element)
+			self.load_immediate(16 + self.vars, f"array_{len(self.arrays)}[{self.vars - base_pointer + 16}]")
+			self.instructions.append("COMP D M")
+			self.vars += 1
+		return base_pointer
+
 	def visitIdentifier(self, node: Identifier):
 		# Load a symbol's value into the A register.
-		symbols = {**self.constants, **self.variables}
+		symbols = {**self.constants, **self.variables, **self.arrays}
 
 		if node.symbol not in symbols:
 			error = Exception(f"Undefined symbol: {node.symbol}")
@@ -375,8 +385,18 @@ class Compiler:
 				self.instructions.append("COMP A D")
 			return value
 
-		else: # Value must be a variable, in this case it's value is not known
+		if node.symbol in self.variables: # It is a variable, in this case it's value is not known
 			addr = self.variables[node.symbol]
+
+			if self.instructions[-1] == "COMP D M" and self.a_reg == addr:
+				pass
+
+			else:
+				self.load_immediate(addr, node.symbol)
+				self.instructions += ["COMP M D"]
+		
+		if node.symbol in self.arrays: # It is an array, in this case it will return the base pointer
+			addr = self.arrays[node.symbol]
 
 			if self.instructions[-1] == "COMP D M" and self.a_reg == addr:
 				pass
@@ -398,19 +418,31 @@ class Compiler:
 
 	def visitVarDeclaration(self, node: VarDeclaration):
 		# Check if symbol is already defined
-		if node.identifier in {**self.constants, **self.variables}:
+		if node.identifier in {**self.constants, **self.variables, **self.arrays}:
 			error = Exception(f"Symbol {node.identifier} is already defined.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
 			raise error
 
-		self.generate_code(node.value)
+		base_pointer: int|None = self.generate_code(node.value)
 
-		self.variables[node.identifier] = 16 + self.vars # Memory addresses start at location 16
+		if node.length is not None:
+			if node.length != len(node.value.elements):
+				error = Exception(f"Expected array length {len(node.value.elements)}, got {node.length} instead.")
+				error.start_pos = node.start_pos
+				error.end_pos = node.end_pos
+				raise error
+
+			self.arrays[node.identifier] = 16 + self.vars
+			base_pointer: int
+			self.load_immediate(base_pointer, f"array_{node.identifier}")
+			self.instructions.append("COMP A D") # Load base pointer
+		else:
+			self.variables[node.identifier] = 16 + self.vars # Memory addresses start at location 16
+		
 		self.load_immediate(16 + self.vars, f"{node.identifier}")
-		self.instructions += [
-			"COMP D M"
-		] # Store result in D register to memory
+		self.instructions.append("COMP D M") # Store result in D register to memory
+		
 		self.vars += 1
 
 	def visitAssignment(self, node: Assignment):
