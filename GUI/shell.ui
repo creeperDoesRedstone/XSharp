@@ -114,9 +114,9 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
     <property name="geometry">
      <rect>
       <x>400</x>
-      <y>100</y>
+      <y>249</y>
       <width>360</width>
-      <height>420</height>
+      <height>271</height>
      </rect>
     </property>
     <property name="styleSheet">
@@ -124,6 +124,9 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
 color: white;
 padding: 6px;
 font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
+    </property>
+    <property name="readOnly">
+     <bool>true</bool>
     </property>
     <property name="tabStopDistance">
      <double>31.000000000000000</double>
@@ -153,6 +156,28 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
     </property>
     <property name="text">
      <string>Line count: 0</string>
+    </property>
+   </widget>
+   <widget class="QTextEdit" name="error">
+    <property name="geometry">
+     <rect>
+      <x>400</x>
+      <y>100</y>
+      <width>360</width>
+      <height>151</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">background-color: rgb(5, 5, 91);
+color: rgb(255, 107, 109);
+padding: 6px;
+font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
+    </property>
+    <property name="readOnly">
+     <bool>true</bool>
+    </property>
+    <property name="tabStopDistance">
+     <double>31.000000000000000</double>
     </property>
    </widget>
   </widget>
