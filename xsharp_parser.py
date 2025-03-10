@@ -1,5 +1,5 @@
 from xsharp_helper import InvalidSyntax, Position
-from xsharp_lexer import TT, Token
+from xsharp_lexer import TT, Token, DATA_TYPES
 
 ## NODES
 class Statements:
@@ -70,7 +70,7 @@ class ConstDefinition:
 		return f"ConstDef[{self.symbol} -> {self.value}]"
 
 class VarDeclaration:
-	def __init__(self, identifier: str, value, start_pos: Position, end_pos: Position):
+	def __init__(self, identifier: str, value, data_type: str, start_pos: Position, end_pos: Position):
 		self.start_pos = start_pos
 		self.end_pos = end_pos
 		self.identifier = identifier
@@ -225,6 +225,28 @@ class Parser:
 		identifier = self.current_token.value
 		self.advance()
 
+		if self.current_token.token_type != TT.COL:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected ':' after variable."
+			))
+		self.advance()
+
+		if not (self.current_token.token_type == TT.KEYWORD and self.current_token.value in DATA_TYPES):
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				f"Expected {', '.join(DATA_TYPES)} after ':'."
+			))
+		data_type = self.current_token.value
+		self.advance()
+
+		if self.current_token.token_type != TT.ASSIGN:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected '=' after ':'."
+			))
+		self.advance()
+
 		expr = res.register(self.expression())
 		if res.error: return res
 		end_pos = self.current_token.end_pos
@@ -235,7 +257,7 @@ class Parser:
 				"Expected a newline or EOF after variable declaration."
 			))
 		
-		return res.success(VarDeclaration(identifier, expr, start_pos, end_pos))
+		return res.success(VarDeclaration(identifier, expr, data_type, start_pos, end_pos))
 
 	def for_loop(self):
 		res = ParseResult()
