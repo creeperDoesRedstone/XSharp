@@ -29,7 +29,7 @@
    <string>MainWindow</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">background-color: rgb(10, 1, 79);
+   <string notr="true">background-color: rgb(9, 29, 32);
 font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;
 font-size: 14px;
 font-weight: 600;
@@ -88,7 +88,7 @@ QPushButton:hover {
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">background-color: rgb(5, 5, 91);</string>
+     <string notr="true">background-color: rgb(17, 46, 52);</string>
     </property>
     <property name="placeholderText">
      <string>File name...</string>
@@ -99,13 +99,13 @@ QPushButton:hover {
      <rect>
       <x>40</x>
       <y>100</y>
-      <width>360</width>
+      <width>350</width>
       <height>420</height>
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">background-color: rgb(7, 7, 130);
-color: white;
+     <string notr="true">background-color: rgb(13, 37, 41);
+color: rgb(221, 184, 126);
 padding: 6px;
 font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
     </property>
@@ -117,13 +117,13 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
     <property name="geometry">
      <rect>
       <x>400</x>
-      <y>210</y>
+      <y>220</y>
       <width>360</width>
-      <height>310</height>
+      <height>300</height>
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">background-color: rgb(5, 5, 91);
+     <string notr="true">background-color: rgb(13, 37, 41);
 color: white;
 padding: 6px;
 font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
@@ -171,7 +171,7 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">background-color: rgb(5, 5, 91);
+     <string notr="true">background-color: rgb(13, 37, 41);
 color: rgb(255, 107, 109);
 padding: 6px;
 font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
