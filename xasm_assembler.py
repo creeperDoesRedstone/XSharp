@@ -1,6 +1,7 @@
-from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QTextEdit, QFileDialog
+from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QTextEdit, QFileDialog, QLabel
 from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
 from PyQt6.QtCore import QRegularExpression
+from PyQt6 import uic
 from xenon_vm import BinSyntaxHighlighter
 
 # Lookup table for codes
@@ -190,33 +191,21 @@ class ASMSyntaxHighlighter(QSyntaxHighlighter):
 class Main(QMainWindow):
 	def __init__(self):
 		super().__init__()
+		uic.loadUi("GUI/shell.ui", self)
 		self.setFixedSize(800, 600)
 		self.setWindowTitle("XAsm Assembler")
-		self.setFont(QFont(["JetBrains Mono", "Consolas"], 11))
 
-		self.assemble_button = QPushButton(self)
-		self.assemble_button.setGeometry(660, 40, 100, 40)
-		self.assemble_button.setText("Assemble!")
-		self.assemble_button.clicked.connect(self.assemble)
+		self.process_button.setText("Assemble!")
+		self.process_button.clicked.connect(self.assemble)
 
-		self.load_file_button = QPushButton(self)
-		self.load_file_button.setGeometry(40, 40, 100, 40)
-		self.load_file_button.setText("Load File")
 		self.load_file_button.clicked.connect(self.load_file)
 		self.fn = ""
 
-		panel_stylesheet: str = f'padding: 12px; font: 10pt "JetBrains Mono"'
-
-		self.result = QTextEdit(self)
-		self.result.setReadOnly(True)
-		self.result.setGeometry(400, 100, 360, 420)
-		self.result.setStyleSheet(panel_stylesheet)
+		self.result.installEventFilter(self)
 		self.result_highlighter = BinSyntaxHighlighter(self.result.document())
 
-		self.file_text = QTextEdit(self)
-		self.file_text.setGeometry(40, 100, 360, 420)
-		self.file_text.setStyleSheet(panel_stylesheet)
 		self.file_text.setAcceptRichText(False)
+		self.file_text.installEventFilter(self)
 		self.ftxt_highlighter = ASMSyntaxHighlighter(self.file_text.document())
 
 	def load_file(self):
@@ -225,10 +214,26 @@ class Main(QMainWindow):
 			with open(self.fn, "r") as file:
 				self.file_text.setPlainText(file.read())
 
+	def eventFilter(self, a0, a1):
+		if a0 == self.file_text:
+			self.ftxt_line_count.setText(
+				f"Line count: {len(self.file_text.toPlainText().splitlines())}"
+			)
+		
+		if a0 == self.result:
+			self.result_line_count.setText(
+				f"Line count: {len(self.result.toPlainText().splitlines())}"
+			)
+
+		return super().eventFilter(a0, a1)
+
 	def assemble(self):
+		self.error.setText("")
+		self.result.setText("")
+
 		result = assemble(self.file_text.toPlainText())
 		if isinstance(result, Exception):
-			self.result.setText(f"{result}")
+			self.error.setText(f"{result}")
 		else:
 			self.result.setText("\n".join(result))
 
