@@ -18,6 +18,9 @@ value++         // Increment
 value--         // Decrement
 ```
 
+### `Data types`
+- `int`: Represents an integer.
+
 ### `Variables and constants`
 Constants are defined using the `const` keyword:
 ```
@@ -27,7 +30,7 @@ From that point, the compiler will replace all instances of the constant with it
 
 Variables are defined using the `var` keyword:
 ```
-var identifier expression
+var identifier: data_type = expression
 ```
 This allocates a memory address for the variable.
 Unlike constants, variables can be changed using the `=` operator:
