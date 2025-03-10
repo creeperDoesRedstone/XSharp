@@ -3,7 +3,7 @@ from PyQt6.QtCore import QRegularExpression, Qt, QEvent
 from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog
 from PyQt6 import uic
 
-from xsharp_lexer import Lexer, KEYWORDS
+from xsharp_lexer import Lexer, KEYWORDS, DATA_TYPES
 from xsharp_parser import Parser
 from xsharp_compiler import Compiler
 from xasm_assembler import ASMSyntaxHighlighter
@@ -59,6 +59,7 @@ class XSharpSyntaxHighlighter(SyntaxHighlighter):
 
 		self.add_rule(r"\b" + r"\b|\b".join(KEYWORDS) + r"\b", "keyword")
 		self.add_rule(r"\b(start|end|step)\b", "keyword2")
+		self.add_rule(r"\b" + r"\b|\b".join(DATA_TYPES) + r"\b", "keyword2")
 		self.add_rule(r"\b\d+(\.\d+)?\b", "number")
 		self.add_rule(r"(\+|-|&|\||~|\^)", "operation")
 		self.add_rule(r"//[^\n]*", "comment")
@@ -187,7 +188,7 @@ class Main(QMainWindow):
 
 				TAB = "\t"
 
-				if cursor_pos > 0 and cursor_pos < len(code) and code[cursor_pos - 1] + code[cursor_pos] == '{}':
+				if cursor_pos > 0 and cursor_pos < len(code) and code[cursor_pos - 1] + code[cursor_pos] in ("{}", "()"):
 					code_cursor.insertText(f"\n{TAB * (tabs_num+1)}\n{TAB * (tabs_num)}")
 					
 					for _ in range(tabs_num + 1):
@@ -205,10 +206,11 @@ class Main(QMainWindow):
 		return super().eventFilter(source, event)
 	
 	def compile(self):
+		self.error.setText("")
+		self.result.setText("")
 		result, error = xs_compile("<stdfile>", self.xsharp_text.toPlainText().strip())
 		if error:
-			print(error)
-			self.result.setText("")
+			self.error.setText(f"{error}")
 		else:
 			assembly: str = "\n".join(result)
 
