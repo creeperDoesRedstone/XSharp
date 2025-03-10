@@ -29,11 +29,14 @@
    <string>MainWindow</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">background-color: rgb(9, 29, 32);
-font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;
+   <string notr="true">
+background-color: rgb(9, 29, 32);
+font-family: "JetBrains Mono", "Consolas";
 font-size: 14px;
 font-weight: 600;
-color: white;</string>
+color: white;
+border-radius: 10px;
+   </string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <widget class="QPushButton" name="load_file_button">
@@ -46,12 +49,16 @@ color: white;</string>
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">QPushButton {
-	background-color: rgb(92, 102, 114);
+     <string notr="true">
+QPushButton {
+    background-color: rgb(92, 102, 114);
+    border-radius: 10px;
+    padding: 5px;
 }
 QPushButton:hover {
-	background-color: rgb(108, 111, 127);
-}</string>
+    background-color: rgb(108, 111, 127);
+}
+     </string>
     </property>
     <property name="text">
      <string>Load file</string>
@@ -67,12 +74,16 @@ QPushButton:hover {
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">QPushButton {
-	background-color: rgb(92, 102, 114);
+     <string notr="true">
+QPushButton {
+    background-color: rgb(92, 102, 114);
+    border-radius: 10px;
+    padding: 5px;
 }
 QPushButton:hover {
-	background-color: rgb(108, 111, 127);
-}</string>
+    background-color: rgb(108, 111, 127);
+}
+     </string>
     </property>
     <property name="text">
      <string>Compile</string>
@@ -88,7 +99,9 @@ QPushButton:hover {
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">background-color: rgb(17, 46, 52);</string>
+     <string notr="true">
+background-color: rgb(17, 46, 52);
+     </string>
     </property>
     <property name="placeholderText">
      <string>File name...</string>
@@ -104,13 +117,16 @@ QPushButton:hover {
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">background-color: rgb(13, 37, 41);
+     <string notr="true">
+background-color: rgb(13, 37, 41);
 color: rgb(221, 184, 126);
 padding: 6px;
-font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
+font-family: "JetBrains Mono", "Consolas";
+border-radius: 10px;
+     </string>
     </property>
     <property name="tabStopDistance">
-     <double>31.000000000000000</double>
+     <double>31.0</double>
     </property>
    </widget>
    <widget class="QTextEdit" name="result">
@@ -123,16 +139,19 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">background-color: rgb(13, 37, 41);
+     <string notr="true">
+background-color: rgb(13, 37, 41);
 color: white;
 padding: 6px;
-font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
+font-family: "JetBrains Mono", "Consolas";
+border-radius: 10px;
+     </string>
     </property>
     <property name="readOnly">
      <bool>true</bool>
     </property>
     <property name="tabStopDistance">
-     <double>31.000000000000000</double>
+     <double>31.0</double>
     </property>
    </widget>
    <widget class="QLabel" name="ftxt_line_count">
@@ -171,16 +190,19 @@ font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
      </rect>
     </property>
     <property name="styleSheet">
-     <string notr="true">background-color: rgb(13, 37, 41);
+     <string notr="true">
+background-color: rgb(13, 37, 41);
 color: rgb(255, 107, 109);
 padding: 6px;
-font-family: &quot;JetBrains Mono&quot;, &quot;Consolas&quot;;</string>
+font-family: "JetBrains Mono", "Consolas";
+border-radius: 10px;
+     </string>
     </property>
     <property name="readOnly">
      <bool>true</bool>
     </property>
     <property name="tabStopDistance">
-     <double>31.000000000000000</double>
+     <double>31.0</double>
     </property>
    </widget>
   </widget>
