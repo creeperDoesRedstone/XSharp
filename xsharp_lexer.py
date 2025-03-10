@@ -7,13 +7,16 @@ KEYWORDS = [
 	"for", "start", "end", "step",
 	"while", "plot"
 ]
+DATA_TYPES = [
+	"int"
+]
 
 # Token types
 class TT(Enum):
+	LT, LE, EQ, NE, GT, GE,\
 	ADD, SUB, INC, DEC,\
 	AND, OR, NOT, XOR,\
 	LPR, RPR, LBR, RBR, COL,\
-	LT, LE, EQ, NE, GT, GE,\
 	ASSIGN,\
 	NUM, IDENTIFIER, KEYWORD, NEWLINE, EOF\
 	= range(25)
@@ -180,7 +183,11 @@ class Lexer:
 				while self.current_char is not None and (self.current_char in string.ascii_letters + string.digits or self.current_char == "_"):
 					identifier += self.current_char
 					self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.KEYWORD if identifier in KEYWORDS else TT.IDENTIFIER, identifier))
+				tokens.append(Token(
+					start_pos, self.pos,
+					TT.KEYWORD if identifier in KEYWORDS+DATA_TYPES else TT.IDENTIFIER,
+					identifier
+				))
 			
 			elif self.current_char == "/":
 				# Try to make a comment
