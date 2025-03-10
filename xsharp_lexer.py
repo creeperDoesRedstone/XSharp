@@ -16,10 +16,10 @@ class TT(Enum):
 	LT, LE, EQ, NE, GT, GE,\
 	ADD, SUB, INC, DEC,\
 	AND, OR, NOT, XOR,\
-	LPR, RPR, LBR, RBR, COL,\
-	ASSIGN,\
+	LPR, RPR, LBR, RBR, LSQ, RSQ,\
+	COL, ASSIGN, COMMA,\
 	NUM, IDENTIFIER, KEYWORD, NEWLINE, EOF\
-	= range(25)
+	= range(28)
 
 	def __str__(self):
 		return super().__str__().removeprefix("TT.")
@@ -109,11 +109,26 @@ class Lexer:
 				start_pos = self.pos.copy()
 				self.advance()
 				tokens.append(Token(start_pos, self.pos, TT.RBR))
+
+			elif self.current_char == "[":
+				start_pos = self.pos.copy()
+				self.advance()
+				tokens.append(Token(start_pos, self.pos, TT.LSQ))
+			
+			elif self.current_char == "]":
+				start_pos = self.pos.copy()
+				self.advance()
+				tokens.append(Token(start_pos, self.pos, TT.RSQ))
 			
 			elif self.current_char == ":":
 				start_pos = self.pos.copy()
 				self.advance()
 				tokens.append(Token(start_pos, self.pos, TT.COL))
+			
+			elif self.current_char == ",":
+				start_pos = self.pos.copy()
+				self.advance()
+				tokens.append(Token(start_pos, self.pos, TT.COMMA))
 			
 			elif self.current_char == "+":
 				start_pos = self.pos.copy()
