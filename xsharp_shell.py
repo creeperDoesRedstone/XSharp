@@ -77,6 +77,7 @@ class Main(QMainWindow):
         super().__init__()
         uic.loadUi("GUI/shell.ui", self)
         self.setWindowTitle("X# Compiler")
+        self.setWindowIcon(QIcon("xenon.png"))
         
         # Connect buttons and initialize variables.
         self.load_file_button.clicked.connect(self.load_file)
