@@ -1,11 +1,12 @@
 from enum import Enum
-from xsharp_helper import Position, UnexpectedCharacter
+from xsharp_helper import Position, UnexpectedCharacter, UnknownLibrary
 import string
 
 KEYWORDS = [
 	"const", "var",
 	"for", "start", "end", "step",
-	"while", "plot"
+	"while", "plot",
+	"include"
 ]
 DATA_TYPES = [
 	"int"
@@ -18,8 +19,9 @@ class TT(Enum):
 	AND, OR, NOT, XOR,\
 	LPR, RPR, LBR, RBR, LSQ, RSQ,\
 	COL, ASSIGN, COMMA,\
+	MUL,\
 	NUM, IDENTIFIER, KEYWORD, NEWLINE, EOF\
-	= range(28)
+	= range(29)
 
 	def __str__(self):
 		return super().__str__().removeprefix("TT.")
@@ -48,19 +50,56 @@ class Lexer:
 		self.fn = fn
 		self.ftxt = ftxt
 		self.pos = Position(-1, 0, -1, fn, ftxt)
+		self.libraries: list[str] = []
 		self.current_char = None
 		self.advance()
-	
+
 	# Advance to the next character
 	def advance(self):
 		self.pos.advance(self.current_char)
 		self.current_char = None if self.pos.index >= len(self.ftxt) else self.ftxt[self.pos.index]
-	
+
+	# Standard libraries
+	def process_file(self):
+		ftxt = self.ftxt.splitlines()
+		result: list[str] = []
+		for i in ftxt:
+			newlines = i.split(";")
+			for j in newlines:
+				result += [j.strip()]
+
+		libraries: list[str] = []
+		
+		for line in result:
+			line = line.split("//")[0].strip()
+			if line.startswith("include "):
+				libraries += line[7:].replace(" ", "").split(",")
+		
+		for lib in libraries:
+			if lib == "operations":
+				self.libraries.append("operations")
+			else:
+				index = self.ftxt.index(f"{lib}")
+				start_pos = Position(
+					index, self.ftxt[:index].count("\n"), self.fn, self.ftxt
+				)
+				end_pos = Position(
+					index + len(lib), self.ftxt[:index].count("\n"), self.fn, self.ftxt
+				)
+				return UnknownLibrary(start_pos, end_pos, lib)
+
 	# Lexes the file text and returns a list of tokens
 	def lex(self):
 		tokens: list[Token] = []
 
+		lib_error = self.process_file()
+		if lib_error is not None:
+			return lib_error, None
+
 		while self.current_char is not None:
+			if self.ftxt.splitlines(keepends=True)[self.pos.line].strip().startswith("include "):
+				self.advance()
+				continue
 
 			if self.current_char in " \t": # Ignore whitespace
 				self.advance()
@@ -204,6 +243,11 @@ class Lexer:
 					identifier
 				))
 			
+			elif self.current_char == "*" and "operations" in self.libraries:
+				start_pos = self.pos.copy()
+				self.advance()
+				tokens.append(Token(start_pos, self.pos, TT.MUL))
+
 			elif self.current_char == "/":
 				# Try to make a comment
 				start_pos = self.pos.copy()
