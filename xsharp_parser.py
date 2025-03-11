@@ -122,6 +122,21 @@ class PlotExpr:
 		self.start_pos = start_pos
 		self.end_pos = end_pos
 
+class ArrayAccess:
+	def __init__(self, array: ArrayLiteral|Identifier, index, end_pos: Position):
+		self.array = array
+		self.index = index
+		self.start_pos = array.start_pos
+		self.end_pos = end_pos
+
+class ArraySet:
+	def __init__(self, array: ArrayLiteral|Identifier, index, value):
+		self.array = array
+		self.index = index
+		self.value = value
+		self.start_pos = array.start_pos
+		self.end_pos = value.end_pos
+
 ## PARSE RESULT
 class ParseResult:
 	def __init__(self):
@@ -460,7 +475,7 @@ class Parser:
 			if not isinstance(value, Identifier):
 				return res.fail(InvalidSyntax(
 					value.start_pos, value.end_pos,
-					"Expected an identifier before ':'."
+					"Expected an identifier before '='."
 				))
 			expr = res.register(self.expression())
 			end_pos = self.current_token.end_pos
@@ -491,7 +506,10 @@ class Parser:
 		return self.binary_op(self.bitwise, (TT.LT, TT.LE, TT.EQ, TT.NE, TT.GT, TT.GE))
 
 	def bitwise(self):
-		return self.binary_op(self.additive, (TT.AND, TT.OR, TT.XOR))
+		return self.binary_op(self.multiplicative, (TT.AND, TT.OR, TT.XOR))
+
+	def multiplicative(self):
+		return self.binary_op(self.additive, (TT.MUL,))
 
 	def additive(self):
 		return self.binary_op(self.unary, (TT.ADD, TT.SUB))
@@ -513,7 +531,7 @@ class Parser:
 
 			return res.success(UnaryOperation(tok, value))
 		
-		value = res.register(self.literal())
+		value = res.register(self.call_access())
 		if res.error: return res
 
 		if self.current_token.token_type in (TT.INC, TT.DEC):
@@ -522,6 +540,42 @@ class Parser:
 			return res.success(UnaryOperation(tok, value))
 		
 		return res.success(value)
+
+	def call_access(self):
+		res = ParseResult()
+
+		literal = res.register(self.literal())
+		if res.error: return res
+
+		if self.current_token.token_type == TT.LSQ:
+			if not isinstance(literal, (ArrayLiteral, Identifier)):
+				return res.fail(InvalidSyntax(
+					literal.start_pos, literal.end_pos,
+					"Expected an array literal or identifier."
+				))
+
+			self.advance()
+			index = res.register(self.comparison())
+			if res.error: return res
+
+			if self.current_token.token_type != TT.RSQ:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected ']' after index."
+				))
+			end_pos = self.current_token.end_pos
+			self.advance()
+
+			if self.current_token.token_type == TT.ASSIGN:
+				self.advance()
+				expr = res.register(self.comparison())
+				if res.error: return res
+
+				return res.success(ArraySet(literal, index, expr))
+
+			return res.success(ArrayAccess(literal, index, end_pos))
+
+		return res.success(literal)
 
 	def literal(self):
 		res = ParseResult()
