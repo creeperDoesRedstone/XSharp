@@ -55,9 +55,10 @@ while condition { <body> }
 ```
 
 ### `Other Things`
-The language has a few other functions
+The language has a few other functions:
 ```
 include operation // includes the operations library
+17 * 2
 ```
 
 ## XAssembly
