@@ -29,12 +29,17 @@ class Error:
 		self.details = details
 
 	def __repr__(self):
-		return f"File {self.start_pos.fn}, line {self.start_pos.line + 1}:\n{self.error_name}: {self.details}"
+		return f"File {self.start_pos.fn}, line {self.start_pos.line + 1}, column {self.start_pos.col + 1}:\n\n{self.error_name}: {self.details}"
 
 # Occurs when the lexer finds an unknown character.
 class UnexpectedCharacter(Error):
 	def __init__(self, start_pos: Position, end_pos: Position, details: str):
 		super().__init__(start_pos, end_pos, "Unexpected Character", details)
+
+# Occurs when the lexer finds an unknown library.
+class UnknownLibrary(Error):
+	def __init__(self, start_pos: Position, end_pos: Position, details: str):
+		super().__init__(start_pos, end_pos, "Unknown Library", details)
 
 # Occurs when the parser encounters incorrect syntax
 class InvalidSyntax(Error):
