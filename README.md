@@ -12,6 +12,8 @@ value1 - value2 // Subtraction
 value1 & value2 // Bitwise AND
 value1 | value2 // Bitwise OR
 value1 ^ value2 // Bitwise XOR
+value1 << value2 // Left Shift
+value1 >> value2 // Right Shift
 ~value          // Negation
 -value          // Inversion
 value++         // Increment
@@ -50,6 +52,12 @@ for identifier start: expr end: expr step: expr { <body> }
 While loops will execute until the value of `condition` is 0:
 ```
 while condition { <body> }
+```
+
+### `Other Things`
+The language has a few other functions
+```
+include operation // includes the operations library
 ```
 
 ## XAssembly
