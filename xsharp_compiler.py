@@ -23,11 +23,12 @@ class Compiler:
 	def __init__(self):
 		self.instructions: list[str] = []
 		self.allocated_registers: set = set()
-		self.available_registers: set = {i for i in range(16)}
+		self.available_registers: set[int] = {i for i in range(16)}
 		self.constants: dict[str, int] = {"true": -1, "false": 0}
 		self.variables: dict[str, int] = {}
 		self.arrays: dict[str, int] = {}
 		self.jumps_dict: dict[int, int] = {}
+		self.memory: dict[int, int] = {}
 
 		self.vars: int = 0
 		self.jumps: int = 0
@@ -44,7 +45,6 @@ class Compiler:
 
 	def compile(self, ast: Statements, remove_that_one_line: bool = False):
 		result = CompileResult()
-		self.make_bools: bool = False
 
 		if not ast.body:
 			return result.success(["HALT"])
@@ -100,11 +100,14 @@ class Compiler:
 		loaded = False
 		if register != self.a_reg:
 			self.instructions.append(f"LDIA r{register}")
+			self.a_reg = register
 			loaded = True
 
-		if self.instructions[-1].endswith(" D") and self.instructions[-1].startswith("COMP ") and not loaded:
+		if self.instructions[-1][-1] == "D" and self.instructions[-1].startswith("COMP ") and not loaded:
 			self.instructions[-1] += "M"
 		else: self.instructions.append("COMP D M")
+
+		self.memory[self.a_reg] = self.d_reg
 
 	def free_register(self, register: int):
 		# Frees up a temporary register
@@ -147,6 +150,7 @@ class Compiler:
 			"AND": "D&M",
 			"OR" : "D|M",
 			"XOR": "D^M",
+			"MUL": "D*M",
 		}
 		
 		# Constant folding
@@ -189,6 +193,7 @@ class Compiler:
 					self.load_immediate(result)
 					self.instructions.append(f"COMP A D")
 				self.a_reg = result
+				self.d_reg = result
 				return result
 
 		# Recursively fold constants
@@ -212,6 +217,7 @@ class Compiler:
 				self.a_reg = temp_a_reg
 				self.load_immediate(self.variables[node.left.symbol], node.left.symbol)
 				self.instructions.append("COMP M++ D" if str(node.op.token_type) == "ADD" else "COMP M-- D")
+				self.d_reg = self.memory[self.variables[node.left.symbol]]
 				self.free_register(reg1)
 				self.free_register(reg2)
 
@@ -225,6 +231,7 @@ class Compiler:
 			result = int(eval(value))
 
 			self.a_reg = result
+			self.d_reg = result
 
 			if result in self.known_values: # Known values in the ISA
 				self.instructions.append(f"COMP {result} D")
@@ -244,11 +251,42 @@ class Compiler:
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
 			raise error
+		
+		if operation[1] != "*":
+			self.load_immediate(f"r{reg1}")
+			self.instructions.append("COMP M D")
+			self.load_immediate(f"r{reg2}")
+			self.instructions.append(f"COMP {operation} D")
+		else:
+			self.instructions.append("COMP 0 D")
+			# Allocate new register
+			reg_res = tuple(self.available_registers - self.allocated_registers)[0]
+			self.allocate_register(reg_res)
 
-		self.load_immediate(f"r{reg1}")
-		self.instructions.append("COMP M D")
-		self.load_immediate(f"r{reg2}")
-		self.instructions.append(f"COMP {operation} D")
+			# Multiplication algorithm
+			jump = self.make_jump_label()
+			end = self.make_jump_label(False)
+			self.load_immediate(f"r{reg1}")
+			self.instructions.append("COMP M-- DM")
+			self.memory[reg1] -= 1
+			self.load_immediate(f".jmp{end}")
+			self.instructions.append("COMP D JLT")
+			self.load_immediate(f"r{reg2}")
+			self.instructions.append("COMP M D")
+			self.load_immediate(f"r{reg_res}")
+			self.instructions.append("COMP D+M M")
+			self.memory[reg_res] += self.d_reg
+			self.load_immediate(f".jmp{jump}")
+			self.instructions.append("COMP 0 JMP")
+			self.instructions.append(f".jmp{end}")
+			self.load_immediate(f"r{reg_res}")
+			self.instructions.append("COMP M D")
+			self.free_register(reg_res)
+
+		# Precompute expression
+		expr = f"{self.d_reg}{operation[1]}{self.memory[reg2]}"
+		expr_result = eval(expr)
+		self.d_reg = expr_result
 
 		# Free temporary registers allocated earlier
 		self.free_register(reg1)
@@ -256,13 +294,13 @@ class Compiler:
 
 	def visitUnaryOperation(self, node: UnaryOperation):
 		if str(node.op.token_type) == "AND": # Address operator (&identifier)
-			if not self.variables.get(node.value.symbol, None):
-				error = Exception(f"Variable '{node.value.symbol}' not found.")
+			if not {**self.variables, **self.arrays}.get(node.value.symbol, None):
+				error = Exception(f"Undefined symbol: {node.value.symbol}")
 				error.start_pos = node.start_pos
 				error.end_pos = node.end_pos
 				raise error
 			
-			self.load_immediate(self.variables.get(node.value.symbol))
+			self.load_immediate({**self.variables, **self.arrays}.get(node.value.symbol))
 			self.instructions.append("COMP A D")
 			return
 
@@ -291,6 +329,8 @@ class Compiler:
 			else:
 				self.load_immediate(folded_value)
 				self.instructions.append("COMP A D")
+			
+			self.d_reg = folded_value
 			return folded_value
 		else:
 			# Generate code for the operand
@@ -323,22 +363,27 @@ class Compiler:
 					self.instructions.append(f"LDIA {result}")
 					self.instructions.append("COMP A D")
 					self.a_reg = result
+				self.d_reg = result
 				return result
 
 			if str(node.op.token_type) == "SUB":  # Negation
-				self.instructions.append("COMP -D D")  # Negate the value in A
-			elif str(node.op.token_type) == "ADD":  # Does nothing
+				self.instructions.append("COMP -D D") # Negate the value in A
+				self.d_reg = -self.d_reg
+			elif str(node.op.token_type) == "ADD": # Does nothing
 				return node.value.value
-			elif str(node.op.token_type) == "NOT":  # Logical NOT
+			elif str(node.op.token_type) == "NOT": # Logical NOT
 				if isinstance(node.value, BinaryOperation):
 					instruction: str = self.instructions[-1][5:-2]
 					self.instructions[-1] = f"COMP !({instruction}) D"
 				else:
 					self.instructions.append("COMP !D D")
-			elif str(node.op.token_type) == "INC":  # Increment
+				self.d_reg = ~self.d_reg
+			elif str(node.op.token_type) == "INC": # Increment
 				self.instructions.append("COMP D++ D")
-			elif str(node.op.token_type) == "DEC":  # Decrement
+				self.d_reg += 1
+			elif str(node.op.token_type) == "DEC": # Decrement
 				self.instructions.append("COMP D-- D")
+				self.d_reg -= 1
 			else:
 				error = Exception(f"Unsupported unary operation: {node.op}")
 				error.start_pos = node.start_pos
@@ -353,6 +398,7 @@ class Compiler:
 			self.load_immediate(node.value)
 			self.instructions.append("COMP A D")
 		
+		self.d_reg = node.value
 		return node.value
 
 	def visitArrayLiteral(self, node: ArrayLiteral):
@@ -361,6 +407,7 @@ class Compiler:
 			self.generate_code(element)
 			self.load_immediate(16 + self.vars, f"array_{len(self.arrays)}[{self.vars - base_pointer + 16}]")
 			self.instructions.append("COMP D M")
+			self.memory[16 + self.vars] = self.d_reg
 			self.vars += 1
 		return base_pointer
 
@@ -379,10 +426,11 @@ class Compiler:
 			value = self.constants[node.symbol]
 			if value in self.known_values: # Known values in the ISA
 				self.instructions.append(f"COMP {value} D")
-			
 			else:
 				self.load_immediate(value, node.symbol)
 				self.instructions.append("COMP A D")
+			
+			self.d_reg = value
 			return value
 
 		if node.symbol in self.variables: # It is a variable, in this case it's value is not known
@@ -395,6 +443,8 @@ class Compiler:
 				self.load_immediate(addr, node.symbol)
 				self.instructions += ["COMP M D"]
 		
+			self.d_reg = self.memory[addr]
+
 		if node.symbol in self.arrays: # It is an array, in this case it will return the base pointer
 			addr = self.arrays[node.symbol]
 
@@ -404,6 +454,8 @@ class Compiler:
 			else:
 				self.load_immediate(addr, node.symbol)
 				self.instructions += ["COMP M D"]
+
+			self.d_reg = self.memory[addr]
 
 	def visitConstDefinition(self, node: ConstDefinition):
 		# Check if symbol is already defined
@@ -425,6 +477,7 @@ class Compiler:
 			raise error
 
 		base_pointer: int|None = self.generate_code(node.value)
+		memory_location: int = 16 + self.vars
 
 		if node.length is not None:
 			if node.length != len(node.value.elements):
@@ -433,15 +486,16 @@ class Compiler:
 				error.end_pos = node.end_pos
 				raise error
 
-			self.arrays[node.identifier] = 16 + self.vars
+			self.arrays[node.identifier] = memory_location
 			base_pointer: int
 			self.load_immediate(base_pointer, f"array_{node.identifier}")
 			self.instructions.append("COMP A D") # Load base pointer
 		else:
-			self.variables[node.identifier] = 16 + self.vars # Memory addresses start at location 16
+			self.variables[node.identifier] = memory_location # Memory addresses start at location 16
 		
-		self.load_immediate(16 + self.vars, f"{node.identifier}")
+		self.load_immediate(memory_location, f"{node.identifier}")
 		self.instructions.append("COMP D M") # Store result in D register to memory
+		self.memory[memory_location] = self.d_reg
 		
 		self.vars += 1
 
@@ -455,7 +509,7 @@ class Compiler:
 			raise error
 
 		if node.identifier.symbol not in self.variables:
-			error = Exception(f"Undefined symbol: {node.identifier.symbol}.")
+			error = Exception(f"Undefined variable: {node.identifier.symbol}.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
 			raise error
@@ -466,6 +520,7 @@ class Compiler:
 		self.instructions += [
 			"COMP D M"
 		] # Store result in D register to memory
+		self.d_reg = self.memory[addr]
 
 	def visitForLoop(self, node: ForLoop):
 		if not node.body.body:
@@ -475,11 +530,13 @@ class Compiler:
 			else:
 				self.load_immediate(node.end, f"End value")
 				self.instructions.append("COMP A D")
+			
+			self.d_reg = node.end
 			return
 
 		# Check if identifier is a variable
 		if node.identifier not in self.variables:
-			error = Exception(f"Symbol {node.identifier} is not defined.")
+			error = Exception(f"Variable {node.identifier} is not defined.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
 			raise error
@@ -494,24 +551,34 @@ class Compiler:
 			self.instructions += ["COMP A D"]
 			self.load_immediate(location, "Start value")
 			self.instructions += [f"COMP D M"]
+		
+		self.memory[location] = node.start
 		jump: int = self.make_jump_label()
 
 		self.generate_code(node.body)
 
-		if node.step in self.known_values:
+		if node.step in (-1, 0, 1):
 			self.load_immediate(location, f"{node.identifier}")
 			match node.step:
-				case 0: self.instructions.append("COMP M D")
-				case 1: self.instructions.append("COMP M++ DM")
-				case -1: self.instructions.append("COMP M-- DM")
+				case 0:
+					self.instructions.append("COMP M D")
+					self.d_reg = self.memory.get(location)
+				case 1:
+					self.instructions.append("COMP M++ DM")
+					self.d_reg = self.memory[location] + 1
+				case -1:
+					self.instructions.append("COMP M-- DM")
+					self.d_reg = self.memory[location] - 1
 		else:
 			self.load_immediate(node.step)
 			self.instructions.append(f"COMP A D // Step value (.jmp{jump})")
 			self.load_immediate(location, f"{node.identifier}")
 			self.instructions.append("COMP D+M DM")
+			self.d_reg += self.memory[location]
 
 		self.load_immediate(node.end, f"End value (.jmp{jump})")
 		self.instructions.append("COMP A-D D")
+		self.d_reg = self.a_reg - self.d_reg
 		self.load_immediate(f".jmp{jump}", f"Jump to start (.jmp{jump})")
 		self.instructions.append("COMP D JGT") if node.step > 0 else self.instructions.append("COMP D JLT")
 		self.a_reg = self.jumps_dict[jump]
@@ -536,7 +603,88 @@ class Compiler:
 		self.generate_code(node.x)
 		self.load_immediate(self.x_addr, "X Port")
 		self.instructions.append("COMP D M")
+		self.memory[self.x_addr] = self.d_reg
 		self.generate_code(node.y)
 		self.load_immediate(self.y_addr, "Y Port")
 		self.instructions.append("COMP D M")
+		self.memory[self.y_addr] = self.d_reg
 		self.instructions.append(f"PLOT {node.value}")
+
+	def visitArrayAccess(self, node: ArrayAccess):
+		res = CompileResult()
+		if isinstance(node.array, Identifier) and node.array.symbol not in self.arrays:
+			error = Exception(f"Undefined array: {node.array.symbol}")
+			error.start_pos = node.array.start_pos
+			error.end_pos = node.array.end_pos
+			raise error
+		
+		if isinstance(node.array, ArrayLiteral):
+			base_pointer: int = self.generate_code(node.array)
+			self.generate_code(node.index)
+			self.load_immediate(base_pointer)
+			self.instructions.append("COMP D+A A")
+			self.a_reg += self.d_reg
+			self.instructions.append("COMP M D")
+			self.d_reg = self.memory[self.a_reg]
+		else: # Identifier, trickier to manage but still doable
+			self.generate_code(node.array)
+			self.instructions.append("COMP D A") # Base pointer
+
+			res.register(self.compile(Statements(
+				node.index.start_pos,
+				node.index.end_pos,
+				[node.index]
+			), True))
+			if res.error:
+				error = Exception(res.error.details)
+				error.start_pos = res.error.start_pos
+				error.end_pos = res.error.end_pos
+				raise error
+			
+			self.instructions[-1] = "COMP D+A A"
+			self.a_reg += self.d_reg
+			self.instructions.append("COMP M D")
+			self.d_reg = self.memory[self.a_reg]
+
+	def visitArraySet(self, node: ArraySet):
+		res = CompileResult()
+		if isinstance(node.array, Identifier) and node.array.symbol not in self.arrays:
+			error = Exception(f"Undefined array: {node.array.symbol}")
+			error.start_pos = node.array.start_pos
+			error.end_pos = node.array.end_pos
+			raise error
+		
+		if isinstance(node.array, ArrayLiteral):
+			base_pointer: int = self.generate_code(node.array)
+			self.generate_code(node.index)
+			self.load_immediate(base_pointer)
+			self.instructions.append("COMP D+A D")
+			self.d_reg += self.a_reg
+
+			pointer_reg = tuple(self.available_registers - self.allocated_registers)[0]
+			self.allocate_register(pointer_reg)
+
+			self.generate_code(node.value)
+			self.load_immediate(pointer_reg)
+			self.a_reg = self.memory[pointer_reg]
+			self.instructions.append("COMP M A")
+			self.instructions.append("COMP D M")
+			self.d_reg = self.memory[self.a_reg]
+		else: # Identifier, trickier to manage but still doable
+			self.generate_code(node.array)
+
+			pointer_reg = tuple(self.available_registers - self.allocated_registers)[0]
+			self.allocate_register(pointer_reg)
+			self.generate_code(node.index)
+			self.load_immediate(f"r{pointer_reg}", "Array pointer")
+			self.instructions.append("COMP D+M M")
+			self.memory[pointer_reg] += self.d_reg
+			self.generate_code(node.value)
+			self.load_immediate(f"r{pointer_reg}", "Array pointer")
+			self.instructions += [
+				"COMP M A",
+				"COMP D M"
+			]
+			self.a_reg = self.memory[pointer_reg]
+			self.d_reg = self.memory[self.a_reg]
+			self.free_register(pointer_reg)
