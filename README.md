@@ -21,7 +21,7 @@ value--         // Decrement
 ```
 
 ### `Data types`
-- `int`: Represents an integer.
+- `int`: Represents an integer, can be used to generate arrays.
 
 ### `Variables and constants`
 Constants are defined using the `const` keyword:
