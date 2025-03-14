@@ -19,9 +19,9 @@ class TT(Enum):
 	AND, OR, NOT, XOR,\
 	LPR, RPR, LBR, RBR, LSQ, RSQ,\
 	COL, ASSIGN, COMMA,\
-	MUL,\
+	MUL, RSHIFT,\
 	NUM, IDENTIFIER, KEYWORD, NEWLINE, EOF\
-	= range(29)
+	= range(30)
 
 	def __str__(self):
 		return super().__str__().removeprefix("TT.")
@@ -81,10 +81,10 @@ class Lexer:
 			else:
 				index = self.ftxt.index(f"{lib}")
 				start_pos = Position(
-					index, self.ftxt[:index].count("\n"), self.fn, self.ftxt
+					index, self.ftxt[:index].count("\n"), 8, self.fn, self.ftxt
 				)
 				end_pos = Position(
-					index + len(lib), self.ftxt[:index].count("\n"), self.fn, self.ftxt
+					index + len(lib), self.ftxt[:index].count("\n"), 8, self.fn, self.ftxt
 				)
 				return UnknownLibrary(start_pos, end_pos, lib)
 
@@ -94,7 +94,7 @@ class Lexer:
 
 		lib_error = self.process_file()
 		if lib_error is not None:
-			return lib_error, None
+			return None, lib_error
 
 		while self.current_char is not None:
 			if self.ftxt.splitlines(keepends=True)[self.pos.line].strip().startswith("include "):
@@ -209,6 +209,9 @@ class Lexer:
 				if self.current_char == "=":
 					self.advance()
 					tokens.append(Token(start_pos, self.pos, TT.GE))
+				elif self.current_char == ">":
+					self.advance()
+					tokens.append(Token(start_pos, self.pos, TT.RSHIFT))
 				else:
 					tokens.append(Token(start_pos, self.pos, TT.GT))
 
