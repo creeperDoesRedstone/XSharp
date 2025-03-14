@@ -45,6 +45,8 @@ class Compiler:
 
 	def compile(self, ast: Statements, remove_that_one_line: bool = False):
 		result = CompileResult()
+		self.a_reg = 0
+		self.d_reg = 0
 
 		if not ast.body:
 			return result.success(["HALT"])
@@ -128,7 +130,8 @@ class Compiler:
 		if value in self.known_values:
 			return
 		else:
-			if self.a_reg != value or self.instructions[-1].startswith("."):
+			if self.a_reg != value or \
+			(len(self.instructions) > 0 and self.instructions[-1].startswith(".")):
 				if comment: self.instructions.append(f"LDIA {value} // {comment}")
 				else: self.instructions.append(f"LDIA {value}")
 		self.a_reg = value
@@ -151,6 +154,7 @@ class Compiler:
 			"OR" : "D|M",
 			"XOR": "D^M",
 			"MUL": "D*M",
+			"RSHIFT": "D>>M"
 		}
 		
 		# Constant folding
@@ -194,6 +198,7 @@ class Compiler:
 					self.instructions.append(f"COMP A D")
 				self.a_reg = result
 				self.d_reg = result
+
 				return result
 
 		# Recursively fold constants
@@ -225,13 +230,13 @@ class Compiler:
 
 		# Fold if necessary
 		if isinstance(left, int) and isinstance(right, int):
-			value = op_map[str(node.op.token_type)].replace("D", f"{left}").replace("M", f"{right}")
+			value = op_map[str(node.op.token_type)]
+
+			value = value.replace("D", f"{left}")
+			value = value.replace("M", f"{right}")
 
 			self.instructions = self.instructions[:start_pos]
 			result = int(eval(value))
-
-			self.a_reg = result
-			self.d_reg = result
 
 			if result in self.known_values: # Known values in the ISA
 				self.instructions.append(f"COMP {result} D")
@@ -239,9 +244,13 @@ class Compiler:
 				self.load_immediate(result)
 				self.instructions.append(f"COMP A D")
 
+			self.a_reg = result
+			self.d_reg = result
+
 			# Free temporary registers allocated earlier
 			self.free_register(reg1)
 			self.free_register(reg2)
+
 			return result
 
 		# Unable to fold
@@ -252,18 +261,13 @@ class Compiler:
 			error.end_pos = node.end_pos
 			raise error
 		
-		if operation[1] != "*":
-			self.load_immediate(f"r{reg1}")
-			self.instructions.append("COMP M D")
-			self.load_immediate(f"r{reg2}")
-			self.instructions.append(f"COMP {operation} D")
-		else:
+		if operation[1] == "*":
 			self.instructions.append("COMP 0 D")
 			# Allocate new register
 			reg_res = tuple(self.available_registers - self.allocated_registers)[0]
 			self.allocate_register(reg_res)
 
-			# Multiplication algorithm
+			# Naive multiplication algorithm
 			jump = self.make_jump_label()
 			end = self.make_jump_label(False)
 			self.load_immediate(f"r{reg1}")
@@ -282,9 +286,18 @@ class Compiler:
 			self.load_immediate(f"r{reg_res}")
 			self.instructions.append("COMP M D")
 			self.free_register(reg_res)
+		
+		elif operation[1:-1] == ">>":
+			...
+		
+		else:
+			self.load_immediate(f"r{reg1}")
+			self.instructions.append("COMP M D")
+			self.load_immediate(f"r{reg2}")
+			self.instructions.append(f"COMP {operation} D")
 
 		# Precompute expression
-		expr = f"{self.d_reg}{operation[1]}{self.memory[reg2]}"
+		expr = f"{self.d_reg}{operation[1:-1]}{self.memory[reg2]}"
 		expr_result = eval(expr)
 		self.d_reg = expr_result
 
@@ -644,7 +657,7 @@ class Compiler:
 			self.instructions[-1] = "COMP D+A A"
 			self.a_reg += self.d_reg
 			self.instructions.append("COMP M D")
-			self.d_reg = self.memory[self.a_reg]
+			self.d_reg = self.memory.get(self.a_reg, self.d_reg)
 
 	def visitArraySet(self, node: ArraySet):
 		res = CompileResult()
@@ -666,10 +679,10 @@ class Compiler:
 
 			self.generate_code(node.value)
 			self.load_immediate(pointer_reg)
-			self.a_reg = self.memory[pointer_reg]
+			self.a_reg = self.memory.get(pointer_reg, 0)
 			self.instructions.append("COMP M A")
 			self.instructions.append("COMP D M")
-			self.d_reg = self.memory[self.a_reg]
+			self.d_reg = self.memory.get(self.a_reg, 0)
 		else: # Identifier, trickier to manage but still doable
 			self.generate_code(node.array)
 
@@ -685,6 +698,6 @@ class Compiler:
 				"COMP M A",
 				"COMP D M"
 			]
-			self.a_reg = self.memory[pointer_reg]
-			self.d_reg = self.memory[self.a_reg]
+			self.a_reg = self.memory.get(pointer_reg, 0)
+			self.d_reg = self.memory.get(self.a_reg, 0)
 			self.free_register(pointer_reg)
