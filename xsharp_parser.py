@@ -506,13 +506,13 @@ class Parser:
 		return self.binary_op(self.bitwise, (TT.LT, TT.LE, TT.EQ, TT.NE, TT.GT, TT.GE))
 
 	def bitwise(self):
-		return self.binary_op(self.multiplicative, (TT.AND, TT.OR, TT.XOR))
-
-	def multiplicative(self):
-		return self.binary_op(self.additive, (TT.MUL,))
+		return self.binary_op(self.additive, (TT.AND, TT.OR, TT.XOR, TT.RSHIFT))
 
 	def additive(self):
-		return self.binary_op(self.unary, (TT.ADD, TT.SUB))
+		return self.binary_op(self.multiplicative, (TT.ADD, TT.SUB))
+
+	def multiplicative(self):
+		return self.binary_op(self.unary, (TT.MUL,))
 
 	def unary(self):
 		res = ParseResult()
