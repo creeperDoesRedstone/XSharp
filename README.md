@@ -12,8 +12,7 @@ value1 - value2 // Subtraction
 value1 & value2 // Bitwise AND
 value1 | value2 // Bitwise OR
 value1 ^ value2 // Bitwise XOR
-value1 << value2 // Left Shift (Yet not implemented)
-value1 >> value2 // Right Shift (Yet not implemented)
+value1 >> value2 // Right Shift
 ~value          // Negation
 -value          // Inversion
 value++         // Increment
