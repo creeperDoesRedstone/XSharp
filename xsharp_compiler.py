@@ -174,6 +174,7 @@ class Compiler:
 			"OR" : "D|M",
 			"XOR": "D^M",
 			"MUL": "D*M",
+			"MOD": "D%M",
 			"RSHIFT": "D>>M",
 			"LSHIFT": "D<<M",
 			"LT": "D<M",
