@@ -1,5 +1,6 @@
 from xsharp_parser import *
 from xsharp_helper import CompilationError
+from typing import Literal
 
 ## COMPILE RESULT
 class CompileResult:
@@ -125,6 +126,25 @@ class Compiler:
 
 		return self.jumps - 1
 
+	def comparison(self, reg1: int, reg2: int, jump: Literal["JLT", "JLE", "JEQ", "JGT", "JNE", "JGE"]):
+		true = self.make_jump_label(False)
+		end = self.make_jump_label(False)
+
+		self.load_immediate(f"r{reg1}")
+		self.instructions.append("COMP M D")
+		self.load_immediate(f"r{reg2}")
+		self.instructions.append("COMP D-M D")
+		self.load_immediate(f".jmp{true}")
+		self.instructions.append(f"COMP D {jump}")
+
+		self.instructions.append("COMP 0 D")
+		self.load_immediate(f".jmp{end}")
+		self.instructions.append("COMP 0 JMP")
+
+		self.instructions.append(f".jmp{true}")
+		self.instructions.append("COMP -1 D")
+		self.instructions.append(f".jmp{end}")
+
 	def load_immediate(self, value: int|str, comment: str = ""):
 		# Load an immediate value into the A register
 		if value in self.known_values:
@@ -154,7 +174,14 @@ class Compiler:
 			"OR" : "D|M",
 			"XOR": "D^M",
 			"MUL": "D*M",
-			"RSHIFT": "D>>M"
+			"RSHIFT": "D>>M",
+			"LSHIFT": "D<<M",
+			"LT": "D<M",
+			"LE": "D<=M",
+			"EQ": "D==M",
+			"GT": "D>M",
+			"NE": "D!=M",
+			"GE": "D>=M",
 		}
 		
 		# Constant folding
@@ -190,6 +217,9 @@ class Compiler:
 
 				value = op.replace("D", f"{left}").replace("M", f"{right}")
 				result = eval(value)
+
+				if result == True: result = -1
+				if result == False: result = 0
 
 				if result in self.known_values: # Known values in the ISA
 					self.instructions.append(f"COMP {result} D")
@@ -261,40 +291,104 @@ class Compiler:
 			error.end_pos = node.end_pos
 			raise error
 		
-		if operation[1] == "*":
-			self.instructions.append("COMP 0 D")
-			# Allocate new register
-			reg_res = tuple(self.available_registers - self.allocated_registers)[0]
-			self.allocate_register(reg_res)
+		match operation[1:-1]:
+			case "*":
+				self.instructions.append("COMP 0 D")
+				# Allocate new register
+				reg_res = tuple(self.available_registers - self.allocated_registers)[0]
+				self.allocate_register(reg_res)
 
-			# Naive multiplication algorithm
-			jump = self.make_jump_label()
-			end = self.make_jump_label(False)
-			self.load_immediate(f"r{reg1}")
-			self.instructions.append("COMP M-- DM")
-			self.memory[reg1] -= 1
-			self.load_immediate(f".jmp{end}")
-			self.instructions.append("COMP D JLT")
-			self.load_immediate(f"r{reg2}")
-			self.instructions.append("COMP M D")
-			self.load_immediate(f"r{reg_res}")
-			self.instructions.append("COMP D+M M")
-			self.memory[reg_res] += self.d_reg
-			self.load_immediate(f".jmp{jump}")
-			self.instructions.append("COMP 0 JMP")
-			self.instructions.append(f".jmp{end}")
-			self.load_immediate(f"r{reg_res}")
-			self.instructions.append("COMP M D")
-			self.free_register(reg_res)
-		
-		elif operation[1:-1] == ">>":
-			...
-		
-		else:
-			self.load_immediate(f"r{reg1}")
-			self.instructions.append("COMP M D")
-			self.load_immediate(f"r{reg2}")
-			self.instructions.append(f"COMP {operation} D")
+				# Naive multiplication algorithm
+				jump = self.make_jump_label()
+				end = self.make_jump_label(False)
+				self.load_immediate(f"r{reg1}")
+				self.instructions.append("COMP M-- DM")
+				self.memory[reg1] -= 1
+				self.load_immediate(f".jmp{end}")
+				self.instructions.append("COMP D JLT")
+				self.load_immediate(f"r{reg2}")
+				self.instructions.append("COMP M D")
+				self.load_immediate(f"r{reg_res}")
+				self.instructions.append("COMP D+M M")
+				self.memory[reg_res] += self.d_reg
+				self.load_immediate(f".jmp{jump}")
+				self.instructions.append("COMP 0 JMP")
+				self.instructions.append(f".jmp{end}")
+				self.load_immediate(f"r{reg_res}")
+				self.instructions.append("COMP M D")
+				self.free_register(reg_res)
+			
+			case ">>":
+				loop = self.make_jump_label()
+				end = self.make_jump_label(False)
+
+				self.load_immediate(f"r{reg2}")
+				self.instructions.append("COMP M D")
+				self.d_reg = self.memory.get(reg2, 0)
+
+				self.load_immediate(f".jmp{end}")
+				self.instructions.append("COMP D JLE")
+
+				self.load_immediate(f"r{reg2}")
+				self.instructions.append("COMP D-- M")
+
+				self.load_immediate(f"r{reg1}")
+				self.instructions.append("COMP M D")
+				self.instructions.append("COMP >>D M")
+				self.d_reg = self.memory.get(reg1, 0)
+				self.memory[reg1] >>= 1
+
+				self.load_immediate(f".jmp{loop}")
+				self.instructions.append("COMP 0 JMP")
+
+				self.instructions.append(f".jmp{end}")
+				self.load_immediate(f"r{reg1}")
+				self.instructions.append("COMP M D")
+
+			case "<<":
+				loop = self.make_jump_label()
+				end = self.make_jump_label()
+
+				self.load_immediate(f"r{reg2}")
+				self.instructions.append("COMP M D")
+				self.d_reg = self.memory.get(reg2, 0)
+
+				self.load_immediate(f".jmp{end}")
+				self.instructions.append("COMP D JLE")
+
+				self.load_immediate(f"r{reg2}")
+				self.instructions.append("COMP D-- M")
+
+				self.load_immediate(f"r{reg1}")
+				self.instructions.append("COMP M D")
+				self.instructions.append("COMP D+M M")
+				self.d_reg = self.memory.get(reg1, 0)
+				self.memory[reg1] <<= 1
+
+				self.load_immediate(f".jmp{loop}")
+				self.instructions.append("COMP 0 JMP")
+
+				self.instructions.append(f".jmp{end}")
+				self.load_immediate(f"r{reg1}")
+				self.instructions.append("COMP M D")
+
+			case "<": self.comparison(reg1, reg2, "JLT")
+			
+			case "<=": self.comparison(reg1, reg2, "JLE")
+
+			case "==": self.comparison(reg1, reg2, "JEQ")
+
+			case "!=": self.comparison(reg1, reg2, "JNE")
+
+			case ">": self.comparison(reg1, reg2, "JGT")
+
+			case ">=": self.comparison(reg1, reg2, "JGE")
+
+			case _:
+				self.load_immediate(f"r{reg1}")
+				self.instructions.append("COMP M D")
+				self.load_immediate(f"r{reg2}")
+				self.instructions.append(f"COMP {operation} D")
 
 		# Precompute expression
 		expr = f"{self.d_reg}{operation[1:-1]}{self.memory[reg2]}"
