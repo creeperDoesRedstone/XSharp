@@ -68,7 +68,8 @@ while condition { <body> }
 The language has a few other functions:
 ```
 include operation // includes the operations library
-17 * 2
+17 * 2 // multiplication
+5 % 2 // modulo
 ```
 
 ## XAssembly
