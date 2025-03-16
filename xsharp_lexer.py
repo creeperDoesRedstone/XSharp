@@ -19,9 +19,9 @@ class TT(Enum):
 	AND, OR, NOT, XOR,\
 	LPR, RPR, LBR, RBR, LSQ, RSQ,\
 	COL, ASSIGN, COMMA,\
-	MUL, RSHIFT,\
+	MUL, RSHIFT, LSHIFT,\
 	NUM, IDENTIFIER, KEYWORD, NEWLINE, EOF\
-	= range(30)
+	= range(31)
 
 	def __str__(self):
 		return super().__str__().removeprefix("TT.")
@@ -200,6 +200,9 @@ class Lexer:
 				if self.current_char == "=":
 					self.advance()
 					tokens.append(Token(start_pos, self.pos, TT.LE))
+				elif self.current_char == "<":
+					self.advance()
+					tokens.append(Token(start_pos, self.pos, TT.LSHIFT))
 				else:
 					tokens.append(Token(start_pos, self.pos, TT.LT))
 			
