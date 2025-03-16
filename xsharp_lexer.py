@@ -19,9 +19,9 @@ class TT(Enum):
 	AND, OR, NOT, XOR,\
 	LPR, RPR, LBR, RBR, LSQ, RSQ,\
 	COL, ASSIGN, COMMA,\
-	MUL, RSHIFT, LSHIFT,\
+	MUL, RSHIFT, LSHIFT, MOD,\
 	NUM, IDENTIFIER, KEYWORD, NEWLINE, EOF\
-	= range(31)
+	= range(32)
 
 	def __str__(self):
 		return super().__str__().removeprefix("TT.")
@@ -253,6 +253,11 @@ class Lexer:
 				start_pos = self.pos.copy()
 				self.advance()
 				tokens.append(Token(start_pos, self.pos, TT.MUL))
+
+			elif self.current_char == "%" and "operations" in self.libraries:
+				start_pos = self.pos.copy()
+				self.advance()
+				tokens.append(Token(start_pos, self.pos, TT.MOD))
 
 			elif self.current_char == "/":
 				# Try to make a comment
