@@ -9,18 +9,28 @@ This repository contains 2 programming languages:
 ```
 value1 + value2 // Addition
 value1 - value2 // Subtraction
+
 value1 & value2 // Bitwise AND
 value1 | value2 // Bitwise OR
 value1 ^ value2 // Bitwise XOR
 value1 >> value2 // Right Shift
+value1 << value2 // Left shift
+
 ~value          // Negation
 -value          // Inversion
 value++         // Increment
 value--         // Decrement
+
+value1 < value2 // Less than
+value1 <= value2 // Less than / equal to
+value1 == value2 // Equal to
+value1 != value2 // Not equal to
+value1 > value2 // Greater than
+value1 >= value2 // Greater than or equal to
 ```
 
 ### `Data types`
-- `int`: Represents an integer, can be used to generate arrays.
+- `int`: Represents an integer and can be used to generate arrays.
 
 ### `Variables and constants`
 Constants are defined using the `const` keyword:
@@ -28,6 +38,7 @@ Constants are defined using the `const` keyword:
 const identifier value
 ```
 From that point, the compiler will replace all instances of the constant with its defined value.
+There are 2 built-in constants: `true` (-1) and `false` (0).
 
 Variables are defined using the `var` keyword:
 ```
