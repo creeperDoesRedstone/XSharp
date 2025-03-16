@@ -512,7 +512,10 @@ class Parser:
 		return self.binary_op(self.multiplicative, (TT.ADD, TT.SUB))
 
 	def multiplicative(self):
-		return self.binary_op(self.unary, (TT.MUL,))
+		return self.binary_op(self.modulo, (TT.MUL,))
+	
+	def modulo(self):
+		return self.binary_op(self.unary, (TT.MOD,))
 
 	def unary(self):
 		res = ParseResult()
