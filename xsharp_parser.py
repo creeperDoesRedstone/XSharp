@@ -506,7 +506,7 @@ class Parser:
 		return self.binary_op(self.bitwise, (TT.LT, TT.LE, TT.EQ, TT.NE, TT.GT, TT.GE))
 
 	def bitwise(self):
-		return self.binary_op(self.additive, (TT.AND, TT.OR, TT.XOR, TT.RSHIFT))
+		return self.binary_op(self.additive, (TT.AND, TT.OR, TT.XOR, TT.RSHIFT, TT.LSHIFT))
 
 	def additive(self):
 		return self.binary_op(self.multiplicative, (TT.ADD, TT.SUB))
