@@ -295,29 +295,49 @@ class Compiler:
 		match operation[1:-1]:
 			case "*":
 				self.instructions.append("COMP 0 D")
-				# Allocate new register
-				reg_res = tuple(self.available_registers - self.allocated_registers)[0]
-				self.allocate_register(reg_res)
+				product = tuple(self.available_registers - self.allocated_registers)[0]
+				self.allocate_register(product)
 
-				# Naive multiplication algorithm
-				jump = self.make_jump_label()
-				end = self.make_jump_label(False)
-				self.load_immediate(f"r{reg1}")
-				self.instructions.append("COMP M-- DM")
-				self.memory[reg1] -= 1
-				self.load_immediate(f".jmp{end}")
-				self.instructions.append("COMP D JLT")
-				self.load_immediate(f"r{reg2}")
+				self.load_immediate(16)
+				self.instructions.append("COMP A D")
+				bits = tuple(self.available_registers - self.allocated_registers)[0]
+				self.allocate_register(bits)
+
+				rshift = self.make_jump_label(False)
+				loop = self.make_jump_label()
+
+				# reg1 is multiplier, reg2 is multiplicand
+				self.instructions.append("COMP 1 D")
+				self.load_immediate(f"r{reg2}", "Get LSB")
+				self.instructions.append("COMP D&M D")
+				self.load_immediate(f".jmp{rshift}")
+				self.instructions.append("COMP D JEQ")
+
+				# Add multiplier to product
+				self.load_immediate(f"r{reg1}", "Multiplier")
 				self.instructions.append("COMP M D")
-				self.load_immediate(f"r{reg_res}")
+				self.load_immediate(f"r{product}")
 				self.instructions.append("COMP D+M M")
-				self.memory[reg_res] += self.d_reg
-				self.load_immediate(f".jmp{jump}")
-				self.instructions.append("COMP 0 JMP")
-				self.instructions.append(f".jmp{end}")
-				self.load_immediate(f"r{reg_res}")
+
+				# Shift
+				self.instructions.append(f".jmp{rshift}")
+				self.load_immediate(f"r{reg2}", "Multiplicand")
+				self.instructions.append("COMP >>M M")
+				self.load_immediate(f"r{reg1}", "Multiplier")
+				self.instructions += [
+					"COMP M D", "COMP D+M M"
+				]
+
+				# Looping
+				self.load_immediate(f"r{bits}")
+				self.instructions.append("COMP M-- DM")
+				self.load_immediate(f".jmp{loop}")
+				self.instructions.append("COMP D JGE")
+
+				self.load_immediate(f"r{product}")
 				self.instructions.append("COMP M D")
-				self.free_register(reg_res)
+				self.free_register(product)
+				self.free_register(bits)
 			
 			case ">>":
 				loop = self.make_jump_label()
