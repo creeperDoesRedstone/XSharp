@@ -191,6 +191,7 @@ class Main(QMainWindow):
 				if code[7] == "1": res = D ^ A # D xor A/M
 			else: # D & A/M
 				res = D & A
+				if code[7] == "1": res >>= 1 # Right shift
 			
 			if res > 32767: res -= 65536 # Overflow
 			if res < -32768: res += 65536
@@ -220,6 +221,15 @@ class Main(QMainWindow):
 				val = int(current_inst[0])
 				x = self.memory_value[Compiler().x_addr]
 				y = self.memory_value[Compiler().y_addr]
+
+				if x < 0:
+					raise Exception("X value cannot be negative!")
+				if x >= 48:
+					raise Exception("X value cannot be greater than 47!")
+				if y < 0:
+					raise Exception("Y value cannot be negative!")
+				if y >= 28:
+					raise Exception("Y value cannot be greater than 27!")
 				
 				pixel: QLabel = getattr(self, f"px[{x}][{y}]")
 				
