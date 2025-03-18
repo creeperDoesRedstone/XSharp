@@ -30,7 +30,15 @@ value1 >= value2 // Greater than or equal to
 ```
 
 ### `Data types`
-- `int`: Represents an integer and can be used to generate arrays.
+- `int`: Represents an integer.
+- `int[]`: Represents an array of integers.
+
+### `Array literals`
+Array literals are elements encased in braces:
+```
+{1, 2, 3}
+{1, 2, i} // Valid, assuming i is defined beforehand
+```
 
 ### `Variables and constants`
 Constants are defined using the `const` keyword:
