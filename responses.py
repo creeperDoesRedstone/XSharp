@@ -1,4 +1,4 @@
-# This file is for Discord bots that interface with the compiler.
+# This file is for Discord bots that interface with the compiler, assembler, and VM.
 
 from xsharp_shell import xs_compile
 from xasm_assembler import assemble
@@ -10,8 +10,30 @@ from PyQt6.QtWidgets import QApplication
 
 SUCCESS = 0
 ERROR = 1
+HELP = 2
 
 def get_response(user_input: str) -> tuple[str, int, bool]:
+	user_input = user_input.strip()
+
+	# Help command
+	if user_input == "$xs_help":
+		help_message: str =\
+		"""Here are my commands:
+- `$xs_help`: Shows this message.
+- `$xs_compile`: Compiles X# Code to XAssembly.
+- `$xs_rcompile`: Same as above, but removes the last line.
+- `$xs_assemble`: Assembles XAssmebly to Xenon's machine code.
+- `$xs_compile_assemble`: Compiles X# Code directly to Xenon's machine code.
+- `$xs_rcompile_assemble`: Same as above, but removes the last line.
+- `$xs_run`: Runs Xenon's machine code.
+- `$xs_runcode`: Runs X# Code directly.
+- `$xs_repo`: Shows the X# repository.
+"""
+		return help_message, HELP, False
+	
+	if user_input == "$xs_repo":
+		return "[X# Repository](<https://github.com/creeperDoesRedstone/XSharp/tree/main>)", HELP, False
+
 	# Compile X# into XAssembly
 	if re.findall(r"\$xs_compile\n?```\n(.*\n?)*?```", user_input):
 		code: str = "\n".join(user_input.replace("```", "").splitlines()[1:])
@@ -36,7 +58,7 @@ def get_response(user_input: str) -> tuple[str, int, bool]:
 	
 	# Compile XAssembly to Xenon's machine code
 	if re.findall(r"\$xs_assemble\n?```\n(.*\n?)*?```", user_input):
-		assembly: str = "\n".join(user_input.replace("```", "").splitlines()[1:])
+		assembly: str = "\n".join(user_input.replace("```", "").splitlines()[2:])
 		result = assemble(assembly)
 
 		if isinstance(result, list):
@@ -89,19 +111,60 @@ def get_response(user_input: str) -> tuple[str, int, bool]:
 		if "0000000000000100" not in machine_code:
 			return f"HALT instruction ({'0' * 13}100) not found!", ERROR, False
 		
-		timeout = vm.run(machine_code, 16384)
-		if timeout:
-			return "Timeout Error", ERROR, False
+		try:
+			timeout = vm.run(machine_code, 100_000)
+			if timeout:
+				return "Timeout Error", ERROR, False
+			
+			result: str = vm.a_reg.text()
+			result += f"\n{vm.d_reg.text()}"
+			result += f"\n{vm.memory.text()}"
+
+			if vm.lit_pixels:
+				write_screen(vm.lit_pixels)
+
+			return result, SUCCESS, len(vm.lit_pixels) > 0
 		
-		result: str = vm.a_reg.text()
-		result += f"\n{vm.d_reg.text()}"
-		result += f"\n{vm.memory.text()}"
-
-		if vm.lit_pixels:
-			write_screen(vm.lit_pixels)
-
-		return result, SUCCESS, len(vm.lit_pixels) > 0
+		except Exception as e:
+			return f"{e}", ERROR, False
 	elif user_input.startswith("$xs_run") and user_input.count("```") != 2:
 		return "Running Xenon's machine code requires a code block!", ERROR, False
 
-	return "", ERROR, False
+	if re.findall(r"\$xs_runcode\n?```\n(.*\n?)*?```", user_input):
+		code: str = "\n".join(user_input.replace("```", "").splitlines()[1:])
+		result, error = xs_compile("<code>", code)
+		if error:
+			return repr(error), ERROR, False
+		
+		assembly: str = "\n".join(result)
+		machine_code: list[str] = assemble(assembly)
+
+		if not isinstance(result, list):
+			return repr(result), ERROR, False
+		
+		machine_code: str = "\n".join(machine_code)
+
+		# Create a new virtual machine
+		app = QApplication([])
+		vm = Main()
+		vm.program_counter = 0
+
+		if "0000000000000100" not in machine_code:
+			return f"HALT instruction ({'0' * 13}100) not found!", ERROR, False
+		
+		try:
+			timeout = vm.run(machine_code, 100_000)
+			if timeout:
+				return "Timeout Error", ERROR, False
+			
+			result: str = f"Result: {vm.d_reg_value}"
+
+			if vm.lit_pixels:
+				write_screen(vm.lit_pixels)
+
+			return result, SUCCESS, len(vm.lit_pixels) > 0
+		
+		except Exception as e:
+			return f"{e}", ERROR, False
+
+	return None, ERROR, False
