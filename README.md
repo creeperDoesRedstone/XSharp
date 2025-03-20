@@ -72,6 +72,32 @@ While-loops will execute until the value of `condition` is 0:
 while condition { <body> }
 ```
 
+### `Conditionals`
+If statements execute if a condition evaluates to `true` (-1).
+```
+if condition {
+    do_something
+}
+```
+If there are multiple conditions, you can use the `elseif` keyword:
+```
+if condition1 {
+    do_something
+} elseif condition2 {
+    do_another_thing
+}
+```
+Finally, you can use the `else` keyword to execute something if all above conditions are false:
+```
+if condition1 {
+    do_something
+} elseif condition2 {
+    do_another_thing
+} else {
+    do_something_else
+}
+```
+
 ### `Other Things`
 The language has a few other functions:
 ```
