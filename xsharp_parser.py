@@ -1,5 +1,6 @@
 from xsharp_helper import InvalidSyntax, Position
 from xsharp_lexer import TT, Token, DATA_TYPES
+from typing import Any
 
 ## NODES
 class Statements:
@@ -137,6 +138,13 @@ class ArraySet:
 		self.start_pos = array.start_pos
 		self.end_pos = value.end_pos
 
+class IfStatement:
+	def __init__(self, cases: list[tuple[Any, Statements]], else_case: Statements|None, start_pos: Position, end_pos: Position):
+		self.cases = cases
+		self.else_case = else_case
+		self.start_pos = start_pos
+		self.end_pos = end_pos
+
 ## PARSE RESULT
 class ParseResult:
 	def __init__(self):
@@ -215,6 +223,7 @@ class Parser:
 				case "for": return self.for_loop()
 				case "while": return self.while_loop()
 				case "plot": return self.plot_expr()
+				case "if": return self.if_statement()
 
 		return self.expression()
 
@@ -461,6 +470,82 @@ class Parser:
 
 		return res.success(PlotExpr(x, y, value, start_pos, end_pos))
 
+	def if_statement(self):
+		res = ParseResult()
+		start_pos: Position = self.current_token.start_pos
+		self.advance()
+		cases: list[tuple[Any, Statements]] = []
+		else_case: Any|None = None
+
+		condition = res.register(self.expression())
+		if res.error: return res
+
+		if self.current_token.token_type != TT.LBR:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected '{' after condition."
+			))
+		self.advance()
+
+		body = res.register(self.statements((TT.EOF, TT.RBR)))
+		if res.error: return res
+
+		if self.current_token.token_type != TT.RBR:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected '}' after if body."
+			))
+		end_pos = self.current_token.end_pos
+		self.advance()
+		cases.append((condition, body))
+		while self.current_token.token_type == TT.NEWLINE: self.advance()
+
+		while self.current_token == Token(None, None, TT.KEYWORD, "elseif"):
+			self.advance()
+			condition = res.register(self.expression())
+			if res.error: return res
+
+			if self.current_token.token_type != TT.LBR:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '{' after condition."
+				))
+			self.advance()
+			body = res.register(self.statements((TT.EOF, TT.RBR)))
+			if res.error: return res
+
+			if self.current_token.token_type != TT.RBR:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '}' after elseif body."
+				))
+			end_pos = self.current_token.end_pos
+			self.advance()
+			cases.append((condition, body))
+			while self.current_token.token_type == TT.NEWLINE: self.advance()
+		
+		if self.current_token == Token(None, None, TT.KEYWORD, "else"):
+			self.advance()
+			if self.current_token.token_type != TT.LBR:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '{' after 'else' keyword."
+				))
+			self.advance()
+			body = res.register(self.statements((TT.EOF, TT.RBR)))
+			if res.error: return res
+
+			if self.current_token.token_type != TT.RBR:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '}' after else body."
+				))
+			end_pos = self.current_token.end_pos
+			self.advance()
+			else_case = body
+		
+		return res.success(IfStatement(cases, else_case, start_pos, end_pos))
+
 	def expression(self):
 		return self.assignment()
 
@@ -512,10 +597,7 @@ class Parser:
 		return self.binary_op(self.multiplicative, (TT.ADD, TT.SUB))
 
 	def multiplicative(self):
-		return self.binary_op(self.modulo, (TT.MUL,))
-	
-	def modulo(self):
-		return self.binary_op(self.unary, (TT.MOD,))
+		return self.binary_op(self.unary, (TT.MUL, TT.MOD))
 
 	def unary(self):
 		res = ParseResult()
