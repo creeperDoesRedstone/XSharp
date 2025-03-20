@@ -6,6 +6,7 @@ KEYWORDS = [
 	"const", "var",
 	"for", "start", "end", "step",
 	"while", "plot",
+	"if", "elseif", "else",
 	"include"
 ]
 DATA_TYPES = [
