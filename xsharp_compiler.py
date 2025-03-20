@@ -816,3 +816,21 @@ class Compiler:
 			self.a_reg = self.memory.get(pointer_reg, 0)
 			self.d_reg = self.memory.get(self.a_reg, 0)
 			self.free_register(pointer_reg)
+
+	def visitIfStatement(self, node: IfStatement):
+		end = self.make_jump_label(False)
+		for condition, body in node.cases:
+			self.generate_code(condition)
+			
+			jump = self.make_jump_label(False)
+			self.load_immediate(f".jmp{jump}")
+			self.instructions.append("COMP D JEQ")
+			self.generate_code(body)
+			self.load_immediate(f".jmp{end}", "End if")
+			self.instructions.append("COMP 0 JMP")
+			self.instructions.append(f".jmp{jump}")
+		
+		if node.else_case:
+			self.generate_code(node.else_case)
+		
+		self.instructions.append(f".jmp{end}")
