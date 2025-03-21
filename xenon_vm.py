@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QMainWindow, QApplication, QLabel, QPushButton, QTextEdit, QFileDialog
 from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
 from PyQt6.QtCore import QRegularExpression
+from PyQt6 import uic
 
 from xsharp_compiler import Compiler
 from screen_writer import write_screen
@@ -57,34 +58,19 @@ class VirtualMachine(QMainWindow):
 		self.init_screen(48, 28)
 
 	def init_GUI(self):
-		self.run_button = QPushButton(self)
-		self.run_button.setGeometry(660, 40, 100, 40)
-		self.run_button.setText("Run")
-		self.run_button.clicked.connect(lambda: self.run(self.file_text.toPlainText()))
+		uic.loadUi("GUI/vm.ui", self)
+		self.process_button: QPushButton
+		self.process_button.clicked.connect(lambda: self.run(self.file_text.toPlainText()))
 		self.program_counter = 0
 
-		self.step_button = QPushButton(self)
-		self.step_button.setGeometry(540, 40, 100, 40)
-		self.step_button.setText("Step")
 		self.step_button.clicked.connect(lambda: self.step(
 			self.file_text.toPlainText().strip().splitlines()
 		))
 
-		self.export_button = QPushButton(self)
-		self.export_button.setGeometry(420, 40, 100, 40)
-		self.export_button.setText("Export")
 		self.export_button.clicked.connect(lambda: write_screen(self.lit_pixels))
 
-		self.load_file_button = QPushButton(self)
-		self.load_file_button.setGeometry(40, 40, 100, 40)
-		self.load_file_button.setText("Load File")
 		self.load_file_button.clicked.connect(self.load_file)
 
-		panel_stylesheet: str = f'padding: 12px; font: 10pt "JetBrains Mono";'
-
-		self.file_text = QTextEdit(self)
-		self.file_text.setGeometry(440, 100, 320, 420)
-		self.file_text.setStyleSheet(panel_stylesheet)
 		self.file_text.setAcceptRichText(False)
 		self.highlighter = BinSyntaxHighlighter(self.file_text.document())
 
@@ -129,7 +115,7 @@ class VirtualMachine(QMainWindow):
 				pixel.setObjectName(f"px[{x}][{y}]")
 
 				pixel.setStyleSheet("background-color: rgb(117, 76, 19); border: 1px solid rgb(89, 52, 0)")
-				pixel.setGeometry(x * self.PIXEL_SIZE + 20, 508 - y * self.PIXEL_SIZE, self.PIXEL_SIZE, self.PIXEL_SIZE)
+				pixel.setGeometry(x * self.PIXEL_SIZE + 12, 508 - y * self.PIXEL_SIZE, self.PIXEL_SIZE, self.PIXEL_SIZE)
 
 	def load_file(self):
 		fn, _ = QFileDialog.getOpenFileName(self, "Open File", "binary", "Binary files (*.bin)")
