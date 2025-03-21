@@ -73,18 +73,12 @@ class XSharpSyntaxHighlighter(SyntaxHighlighter):
 		self.add_rule(r"//.*", "comment")
 		self.add_rule(r"/\*.*?\*/", "comment", True)
 
-class CommentHighlighter(SyntaxHighlighter):
-	def __init__(self, document):
-		super().__init__(document)
-
-		self.comment_format = QTextCharFormat()
-		self.comment_format.setForeground(QColor(98, 133, 139))
-		self.comment_format.setFontItalic(True)
-
 		self.comment_start_exp = QRegularExpression(r"/\*")
 		self.comment_end_exp = QRegularExpression(r"\*/")
 	
 	def highlightBlock(self, text):
+		super().highlightBlock(text)
+
 		self.setCurrentBlockState(0)
 		start_index: int = 0
 
@@ -103,14 +97,14 @@ class CommentHighlighter(SyntaxHighlighter):
 				# If the end of the comment is found in this block...
 				end_index = end_match.capturedEnd()
 				comment_length = end_index - start_index
-				self.setFormat(start_index, comment_length, self.comment_format)
+				self.setFormat(start_index, comment_length, self.get_format("comment"))
 				# Look for another comment start after the current comment.
 				next_match = self.comment_start_exp.match(text, end_index)
 				start_index = next_match.capturedStart() if next_match.hasMatch() else -1
 			else:
 				# If no end found, highlight to the end of the block and mark state.
 				comment_length = len(text) - start_index
-				self.setFormat(start_index, comment_length, self.comment_format)
+				self.setFormat(start_index, comment_length, self.get_format("comment"))
 				self.setCurrentBlockState(1)
 				break
 
@@ -131,7 +125,6 @@ class XSharpShell(QMainWindow):
 		self.process_button: QPushButton
 
 		self.xsharp_text_highlighter = XSharpSyntaxHighlighter(self.file_text.document())
-		self.comment_highlighter = CommentHighlighter(self.file_text.document())
 		self.file_text: QTextEdit
 		self.file_text.installEventFilter(self)
 		self.file_text.setAcceptRichText(False)
