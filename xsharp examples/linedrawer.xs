@@ -5,10 +5,10 @@ const x2 30
 const y2 21
 var x: int = x1
 var y: int = y1
-var dx: int = #(x2 - x1)
-var dy: int = #(y2 - y1)
-var s1: int = $(x2 - x1)
-var s2: int = $(y2 - y1)
+const dx: int = #(x2 - x1)
+const dy: int = #(y2 - y1)
+const s1: int = $(x2 - x1)
+const s2: int = $(y2 - y1)
 
 var interchange: int = 0
 var temp: int = 0
