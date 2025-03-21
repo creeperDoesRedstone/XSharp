@@ -597,12 +597,12 @@ class Parser:
 		return self.binary_op(self.multiplicative, (TT.ADD, TT.SUB))
 
 	def multiplicative(self):
-		return self.binary_op(self.unary, (TT.MUL, TT.MOD))
+		return self.binary_op(self.unary, (TT.MUL,))
 
 	def unary(self):
 		res = ParseResult()
 
-		if self.current_token.token_type in (TT.ADD, TT.SUB, TT.NOT, TT.AND):
+		if self.current_token.token_type in (TT.ADD, TT.SUB, TT.NOT, TT.AND, TT.ABS, TT.SIGN):
 			tok = self.current_token
 			self.advance()
 			value = res.register(self.unary())
