@@ -1,6 +1,6 @@
-from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor, QTextCursor, QIcon, QPixmap
+from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor, QTextCursor
 from PyQt6.QtCore import QRegularExpression, Qt, QEvent, QObject
-from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog, QTextEdit, QPushButton, QCompleter
+from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog, QTextEdit, QPushButton
 from PyQt6 import uic
 
 from xsharp_lexer import Lexer, KEYWORDS, DATA_TYPES
@@ -61,6 +61,7 @@ class XSharpSyntaxHighlighter(SyntaxHighlighter):
 		self.create_format("brackets", QColor(247, 217, 27))
 		self.create_format("comment", QColor(98, 133, 139), italic=True)
 		self.create_format("number", QColor(85, 91, 239))
+		self.create_format("constant", QColor(204, 152, 0), bold=True)
 
 		self.add_rule(r"\b" + r"\b|\b".join(KEYWORDS) + r"\b", "keyword")
 		self.add_rule(r"\b(start|end|step)\b", "keyword2")
@@ -73,12 +74,65 @@ class XSharpSyntaxHighlighter(SyntaxHighlighter):
 		self.add_rule(r"//.*", "comment")
 		self.add_rule(r"/\*.*?\*/", "comment", True)
 
-		self.comment_start_exp = QRegularExpression(r"/\*")
-		self.comment_end_exp = QRegularExpression(r"\*/")
+		self.comment_start_expr = QRegularExpression(r"/\*")
+		self.comment_end_expr = QRegularExpression(r"\*/")
+		self.constant_regex = QRegularExpression(r"\bconst\s+(\w+)\s+.*")
+		self.comment_regex = QRegularExpression(r"//.*|/\*[\s\S]*?\*/")
+		self.constants: set = set()
 	
 	def highlightBlock(self, text):
+		# Extract comments
+		comment_matches = []
+		match_iterator = self.comment_regex.globalMatch(text)
+		while match_iterator.hasNext():
+			match = match_iterator.next()
+			comment_matches.append((match.capturedStart(), match.capturedEnd()))
+		
+		# Extract constant names
+		new_constants: set = set()
+		match_iter = self.constant_regex.globalMatch(text)
+		while match_iter.hasNext():
+			match = match_iter.next()
+			start, end = match.capturedStart(1), match.capturedEnd(1)
+			if any(c_start <= start <= c_end for c_start, c_end in comment_matches):
+				continue
+			new_constants.add(match.captured(1))
+		
+		# Update constants
+		all_text = self.document().toPlainText()
+		valid_constants = set()
+		lines = all_text.splitlines()
+
+		for line in lines:
+			# Skip lines that are fully inside comments
+			if self.comment_regex.match(line).hasMatch():
+				continue
+
+			match = self.constant_regex.match(line)
+			if match.hasMatch():
+				valid_constants.add(match.captured(1))
+
+		# Remove constants that are ONLY inside comments
+		self.constants = valid_constants
+
+		# Highlight stored constants dynamically
+		for constant in self.constants:
+			const_regex = QRegularExpression(rf"\b{constant}\b")
+			match_iterator = const_regex.globalMatch(text)
+			while match_iterator.hasNext():
+				match = match_iterator.next()
+				start, end = match.capturedStart(), match.capturedEnd()
+
+				# Skip if inside a comment
+				if any(c_start <= start <= c_end for c_start, c_end in comment_matches):
+					continue
+
+				self.setFormat(start, end - start, self.get_format("constant"))
+
+		# Highlight other things
 		super().highlightBlock(text)
 
+		# Highlight multiline comments / block comments
 		self.setCurrentBlockState(0)
 		start_index: int = 0
 
@@ -86,20 +140,20 @@ class XSharpSyntaxHighlighter(SyntaxHighlighter):
 			start_index = 0
 		else:
 			# Find the start of a block comment
-			matches = self.comment_start_exp.match(text)
+			matches = self.comment_start_expr.match(text)
 			start_index = matches.capturedStart() if matches.hasMatch() else -1
 		
 		# Process all block comments
 		while start_index >= 0:
 			# Try to find the end of the block comment in this block.
-			end_match = self.comment_end_exp.match(text, start_index)
+			end_match = self.comment_end_expr.match(text, start_index)
 			if end_match.hasMatch():
 				# If the end of the comment is found in this block...
 				end_index = end_match.capturedEnd()
 				comment_length = end_index - start_index
 				self.setFormat(start_index, comment_length, self.get_format("comment"))
 				# Look for another comment start after the current comment.
-				next_match = self.comment_start_exp.match(text, end_index)
+				next_match = self.comment_start_expr.match(text, end_index)
 				start_index = next_match.capturedStart() if next_match.hasMatch() else -1
 			else:
 				# If no end found, highlight to the end of the block and mark state.
@@ -280,6 +334,8 @@ class XSharpShell(QMainWindow):
 					return True
 				return super().eventFilter(source, event)
 		
+		# Rehighlight
+		self.xsharp_text_highlighter.highlightBlock(self.file_text.toPlainText())
 		if source == self.result:
 			self.result_line_count.setText(
 				f"Line count: {len(self.result.toPlainText().splitlines())}"
