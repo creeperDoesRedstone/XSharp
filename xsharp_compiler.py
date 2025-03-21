@@ -135,16 +135,16 @@ class Compiler:
 		self.instructions.append("COMP M D")
 		self.load_immediate(f"r{reg2}")
 		self.instructions.append("COMP D-M D")
-		self.load_immediate(f".jmp{true}")
+		self.load_immediate(f".true{true}")
 		self.instructions.append(f"COMP D {jump}")
 
 		self.instructions.append("COMP 0 D")
-		self.load_immediate(f".jmp{end}")
+		self.load_immediate(f".false{end}")
 		self.instructions.append("COMP 0 JMP")
 
-		self.instructions.append(f".jmp{true}")
+		self.instructions.append(f".true{true}")
 		self.instructions.append("COMP -1 D")
-		self.instructions.append(f".jmp{end}")
+		self.instructions.append(f".false{end}")
 
 	def load_immediate(self, value: int|str, comment: str = ""):
 		# Load an immediate value into the A register
@@ -313,7 +313,7 @@ class Compiler:
 				self.instructions.append("COMP 1 D")
 				self.load_immediate(f"r{reg2}", "Get LSB")
 				self.instructions.append("COMP D&M D")
-				self.load_immediate(f".jmp{rshift}")
+				self.load_immediate(f".shift{rshift}")
 				self.instructions.append("COMP D JEQ")
 
 				# Add multiplier to product
@@ -323,7 +323,7 @@ class Compiler:
 				self.instructions.append("COMP D+M M")
 
 				# Shift
-				self.instructions.append(f".jmp{rshift}")
+				self.instructions.append(f".shift{rshift}")
 				self.load_immediate(f"r{reg2}", "Multiplicand")
 				self.instructions.append("COMP >>M M")
 				self.load_immediate(f"r{reg1}", "Multiplier")
@@ -334,7 +334,7 @@ class Compiler:
 				# Looping
 				self.load_immediate(f"r{bits}")
 				self.instructions.append("COMP M-- DM")
-				self.load_immediate(f".jmp{loop}")
+				self.load_immediate(f".loop{loop}")
 				self.instructions.append("COMP D JGE")
 
 				self.load_immediate(f"r{product}")
@@ -350,7 +350,7 @@ class Compiler:
 				self.instructions.append("COMP M D")
 				self.d_reg = self.memory.get(reg2, 0)
 
-				self.load_immediate(f".jmp{end}")
+				self.load_immediate(f".end{end}")
 				self.instructions.append("COMP D JLE")
 
 				self.load_immediate(f"r{reg2}")
@@ -362,10 +362,10 @@ class Compiler:
 				self.d_reg = self.memory.get(reg1, 0)
 				self.memory[reg1] >>= 1
 
-				self.load_immediate(f".jmp{loop}")
+				self.load_immediate(f".loop{loop}")
 				self.instructions.append("COMP 0 JMP")
 
-				self.instructions.append(f".jmp{end}")
+				self.instructions.append(f".end{end}")
 				self.load_immediate(f"r{reg1}")
 				self.instructions.append("COMP M D")
 
@@ -377,7 +377,7 @@ class Compiler:
 				self.instructions.append("COMP M D")
 				self.d_reg = self.memory.get(reg2, 0)
 
-				self.load_immediate(f".jmp{end}")
+				self.load_immediate(f".end{end}")
 				self.instructions.append("COMP D JLE")
 
 				self.load_immediate(f"r{reg2}")
@@ -389,10 +389,10 @@ class Compiler:
 				self.d_reg = self.memory.get(reg1, 0)
 				self.memory[reg1] <<= 1
 
-				self.load_immediate(f".jmp{loop}")
+				self.load_immediate(f".loop{loop}")
 				self.instructions.append("COMP 0 JMP")
 
-				self.instructions.append(f".jmp{end}")
+				self.instructions.append(f".end{end}")
 				self.load_immediate(f"r{reg1}")
 				self.instructions.append("COMP M D")
 
