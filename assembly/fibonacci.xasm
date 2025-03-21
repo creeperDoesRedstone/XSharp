@@ -1,10 +1,11 @@
-LDIA 0
+LDIA r0
 COMP 0 M
-LDIA 1
+LDIA r1
 COMP 1 DM
-LDIA 0
+.loop
+LDIA r0
 COMP D+M DM
-LDIA 1
+LDIA r1
 COMP D+M DM
-LDIA 4
+LDIA .loop
 COMP 0 JMP // Jumps back
