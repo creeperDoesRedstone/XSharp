@@ -108,6 +108,10 @@ include operation // includes the operations library
 17 * 2 // multiplication
 5 % 2 // modulo
 ```
+You can also write to the screen using the `plot` keyword:
+```
+plot x y 0/1
+```
 
 ## XAssembly
 There are currently 5 instructions: `LDIA`, `COMP`, `NOOP`, `HALT`, and `PLOT`:
