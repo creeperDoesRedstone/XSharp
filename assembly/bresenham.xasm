@@ -1,0 +1,272 @@
+LDIA 5 // x1
+COMP A D
+LDIA 16 // x
+COMP D M
+LDIA 3 // y1
+COMP A D
+LDIA 17 // y
+COMP D M
+LDIA 25
+COMP A D
+LDIA 18 // dx
+COMP D M
+LDIA 18
+COMP A D
+LDIA 19 // dy
+COMP D M
+COMP 1 D
+LDIA 20 // s1
+COMP D M
+COMP 1 D
+LDIA 21 // s2
+COMP D M
+COMP 0 D
+LDIA 22 // interchange
+COMP D M
+COMP 0 D
+LDIA 23 // temp
+COMP D M
+LDIA 19 // dy
+COMP M D
+LDIA r0
+COMP D M
+LDIA 18 // dx
+COMP M D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D-M D
+LDIA .jmp1
+COMP D JGT
+COMP 0 D
+LDIA .jmp2
+COMP 0 JMP
+.jmp1
+COMP -1 D
+.jmp2
+LDIA .condition3
+COMP D JEQ
+LDIA 18 // dx
+COMP M D
+LDIA 23 // temp
+COMP D M
+LDIA 19 // dy
+COMP M D
+LDIA 18 // dx
+COMP D M
+LDIA 23 // temp
+COMP M D
+LDIA 19 // dy
+COMP D M
+COMP 1 D
+LDIA 22 // interchange
+COMP D M
+LDIA .endif0 // End if
+COMP 0 JMP
+.condition3
+.endif0
+LDIA 19 // dy
+COMP M D
+LDIA r0
+COMP D M
+LDIA 19 // dy
+COMP M D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D+M D
+LDIA 24 // a
+COMP D M
+LDIA r0
+COMP D M
+LDIA 18 // dx
+COMP M D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D-M D
+LDIA 25 // e
+COMP D M
+LDIA r0
+COMP D M
+LDIA 18 // dx
+COMP M D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D-M D
+LDIA 26 // b
+COMP D M
+COMP 0 D
+LDIA 27 // i
+COMP D M
+LDIA 16 // x
+COMP M D
+LDIA 2048 // X Port
+COMP D M
+LDIA 17 // y
+COMP M D
+LDIA 2049 // Y Port
+COMP D M
+PLOT 1
+LDIA 27 // Start value
+COMP 0 M
+.for4
+LDIA 25 // e
+COMP M D
+LDIA r0
+COMP D M
+COMP 0 D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D-M D
+LDIA .jmp6
+COMP D JLT
+COMP 0 D
+LDIA .jmp7
+COMP 0 JMP
+.jmp6
+COMP -1 D
+.jmp7
+LDIA .condition8
+COMP D JEQ
+LDIA 22 // interchange
+COMP M D
+LDIA r0
+COMP D M
+COMP 1 D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D-M D
+LDIA .jmp10
+COMP D JEQ
+COMP 0 D
+LDIA .jmp11
+COMP 0 JMP
+.jmp10
+COMP -1 D
+.jmp11
+LDIA .condition12
+COMP D JEQ
+LDIA 17 // y
+COMP M D
+LDIA r0
+COMP D M
+LDIA 21 // s2
+COMP M D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D+M D
+LDIA 17 // y
+COMP D M
+LDIA .endif9 // End if
+COMP 0 JMP
+.condition12
+LDIA 16 // x
+COMP M D
+LDIA r0
+COMP D M
+LDIA 20 // s1
+COMP M D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D+M D
+LDIA 16 // x
+COMP D M
+.endif9
+LDIA 25 // e
+COMP M D
+LDIA r0
+COMP D M
+LDIA 24 // a
+COMP M D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D+M D
+LDIA 25 // e
+COMP D M
+LDIA .endif5 // End if
+COMP 0 JMP
+.condition8
+LDIA 17 // y
+COMP M D
+LDIA r0
+COMP D M
+LDIA 21 // s2
+COMP M D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D+M D
+LDIA 17 // y
+COMP D M
+LDIA 16 // x
+COMP M D
+LDIA r0
+COMP D M
+LDIA 20 // s1
+COMP M D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D+M D
+LDIA 16 // x
+COMP D M
+LDIA 25 // e
+COMP M D
+LDIA r0
+COMP D M
+LDIA 26 // b
+COMP M D
+LDIA r1
+COMP D M
+LDIA r0
+COMP M D
+LDIA r1
+COMP D+M D
+LDIA 25 // e
+COMP D M
+.endif5
+LDIA 16 // x
+COMP M D
+LDIA 2048 // X Port
+COMP D M
+LDIA 17 // y
+COMP M D
+LDIA 2049 // Y Port
+COMP D M
+PLOT 1
+LDIA 27 // i
+COMP M++ DM
+LDIA 25 // End value (.for4)
+COMP A-D D
+LDIA .for4 // Jump to start (.for4)
+COMP D JGT
+HALT
