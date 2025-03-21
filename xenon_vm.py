@@ -45,7 +45,7 @@ class BinSyntaxHighlighter(QSyntaxHighlighter):
 				_match = match_iterator.next()
 				self.setFormat(_match.capturedStart(), _match.capturedLength(), _format)
 
-class Main(QMainWindow):
+class VirtualMachine(QMainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setFixedSize(800, 600)
@@ -144,10 +144,13 @@ class Main(QMainWindow):
 		register.setText(f"{kind}: {value}")
 		if kind == "A":
 			self.a_reg_value = value
-			self.memory.setText(f"M: {self.memory_value[self.a_reg_value]}")
+			if self.a_reg_value >= 0 and self.a_reg_value < len(self.memory_value):
+				self.memory.setText(f"M: {self.memory_value[self.a_reg_value]}")
+			else:
+				self.memory.setText(f"M: Unmapped")
 		elif kind == "D":
 			self.d_reg_value = value
-		elif kind == "M":
+		elif kind == "M" and self.a_reg_value >= 0 and self.a_reg_value < len(self.memory_value):
 			self.memory_value[self.a_reg_value] = value
 
 	def step(self, PROM: list[str]):
@@ -178,7 +181,7 @@ class Main(QMainWindow):
 			jumps = current_inst[11:14]
 
 			D = self.d_reg_value
-			A = self.a_reg_value if code[0] == "1" else self.memory_value[self.a_reg_value]
+			A = self.a_reg_value if code[0] == "1" else self.memory_value[self.a_reg_value] if self.a_reg_value >= 0 and self.a_reg_value < len(self.memory_value) else 0
 			res = 0
 
 			if code[2] == "1": D = 0 # Cancel D
@@ -277,7 +280,7 @@ class Main(QMainWindow):
 
 if __name__ == "__main__":
 	app = QApplication([])
-	main = Main()
+	main = VirtualMachine()
 
 	main.show()
 	app.exec()
