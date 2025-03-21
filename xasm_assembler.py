@@ -1,11 +1,11 @@
-from PyQt6.QtWidgets import QMainWindow, QApplication, QPushButton, QTextEdit, QFileDialog, QLabel
-from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
+from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog
+from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor, QIcon, QPixmap
 from PyQt6.QtCore import QRegularExpression
 from PyQt6 import uic
 from xenon_vm import BinSyntaxHighlighter
 
 # Lookup table for codes
-# Format: A? NotD ZeroD And|Add NotOutPut ZeroA|M NotA|M DisableCarry
+# Format: A? NotD ZeroD And|Add NotOutPut ZeroA|M NotA|M DC|RShift
 ALU_CODES = {
 	"0": 36,
 	"1": 126,
@@ -40,10 +40,13 @@ ALU_CODES = {
 	"D|M": 74,
 	"!(D|A)": 194,
 	"!(D|M)": 66,
-	"D^A": 129,
-	"D^M": 1,
-	"!(D^A)": 137,
-	"!(D^M)": 9,
+	"D^A": 145,
+	"D^M": 17,
+	"!(D^A)": 153,
+	"!(D^M)": 25,
+	">>D": 7,
+	">>A": 225,
+	">>M": 97,
 }
 
 JUMPS = {
@@ -151,20 +154,22 @@ class ASMSyntaxHighlighter(QSyntaxHighlighter):
 		super().__init__(document)
 		self.highlighting_rules: list[tuple[QRegularExpression, QTextCharFormat]] = []
 
-		self.create_format("instruction", QColor(105, 205, 255), bold=True)
-		self.create_format("jump", QColor(255, 170, 0), bold=True)
-		self.create_format("register", QColor(170, 170, 255))
-		self.create_format("destination", QColor(255, 255, 0), bold=True)
-		self.create_format("operation", QColor(150, 150, 150))
-		self.create_format("comment", QColor(85, 170, 127), italic=True)
-		self.create_format("number", QColor(255, 135, 255))
+		self.create_format("instruction", QColor(213, 117, 157), bold=True)
+		self.create_format("jump", QColor(204, 152, 13), bold=True)
+		self.create_format("register", QColor(101, 171, 235))
+		self.create_format("destination", QColor(109, 234, 161), bold=True)
+		self.create_format("operation", QColor(213, 117, 157), bold=True)
+		self.create_format("comment", QColor(98, 133, 139), italic=True)
+		self.create_format("number", QColor(85, 91, 239))
+		self.create_format("label", QColor("white"), italic=True)
 
 		self.add_rule(r"\b(D|A|M|DA|AM|DM|DAM)\b", "destination")
 		self.add_rule(r"\b(NOOP|HALT|LDIA|COMP|PLOT)\b", "instruction")
 		self.add_rule(r"\b(JLT|JEQ|JLE|JGT|JNE|JGE|JMP)\b", "jump")
 		self.add_rule(r"\b(r\d+)\b", "register")
 		self.add_rule(r"\b\d+(\.\d+)?\b", "number")
-		self.add_rule(r"(\+|-|&|\||~|\^)", "operation")
+		self.add_rule(r"(\+|-|&|\||~|\^|>>)", "operation")
+		self.add_rule(r"(?<!\S)\.\w+", "label")
 		self.add_rule(r"//[^\n]*", "comment")
 
 	def create_format(self, name: str, color: QColor, bold: bool = False, italic: bool = False):
@@ -188,12 +193,13 @@ class ASMSyntaxHighlighter(QSyntaxHighlighter):
 				_match = match_iterator.next()
 				self.setFormat(_match.capturedStart(), _match.capturedLength(), _format)
 
-class Main(QMainWindow):
+class XAsmAssembler(QMainWindow):
 	def __init__(self):
 		super().__init__()
 		uic.loadUi("GUI/shell.ui", self)
 		self.setFixedSize(800, 600)
 		self.setWindowTitle("XAsm Assembler")
+		self.setWindowIcon(QIcon(QPixmap("Xenon.png")))
 
 		self.process_button.setText("Assemble!")
 		self.process_button.clicked.connect(self.assemble)
@@ -213,6 +219,9 @@ class Main(QMainWindow):
 		if self.fn:
 			with open(self.fn, "r") as file:
 				self.file_text.setPlainText(file.read())
+			
+			self.file_name.setText(self.fn.split("/")[-1])
+			self.file_name.setReadOnly(True)
 
 	def eventFilter(self, a0, a1):
 		if a0 == self.file_text:
@@ -244,7 +253,7 @@ class Main(QMainWindow):
 
 if __name__ == "__main__":
 	app = QApplication([])
-	main = Main()
+	main = XAsmAssembler()
 
 	main.show()
 	app.exec()
