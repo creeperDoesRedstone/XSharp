@@ -54,7 +54,7 @@ class Compiler:
 
 		try:
 			self.generate_code(ast)
-			if self.instructions[-1] == "COMP A D" and remove_that_one_line:
+			if len(self.instructions) > 0 and self.instructions[-1] == "COMP A D" and remove_that_one_line:
 				self.instructions = self.instructions[:-1]
 
 			self.instructions.append("HALT")  # Ensure program ends with HALT
@@ -63,7 +63,7 @@ class Compiler:
 			return result.success(self.instructions)
 		
 		except Exception as e:
-			return result.fail(CompilationError(e.start_pos, e.end_pos, str(e)))
+			return result.fail(CompilationError(e.start_pos, e.end_pos, f"{e}\nError code: {e.code}"))
 
 	def generate_code(self, node):
 		method_name = f"visit{type(node).__name__}"
@@ -96,6 +96,7 @@ class Compiler:
 			error = Exception("Too many temporary registers! Refine your code!")
 			error.start_pos = None
 			error.end_pos = None
+			error.code = 0
 			raise error
 
 		self.allocated_registers.add(register)
@@ -160,6 +161,7 @@ class Compiler:
 		error = Exception(f"Unknown AST node type: {type(node).__name__}")
 		error.start_pos = node.start_pos
 		error.end_pos = node.end_pos
+		error.code = 1
 		raise error
 
 	def visitStatements(self, node: Statements):
@@ -213,6 +215,7 @@ class Compiler:
 					error = Exception(f"Unsupported binary operation: {node.op}")
 					error.start_pos = node.start_pos
 					error.end_pos = node.end_pos
+					error.code = 2
 					raise error
 
 				value = op.replace("D", f"{left}").replace("M", f"{right}")
@@ -289,6 +292,7 @@ class Compiler:
 			error = Exception(f"Unsupported binary operation: {node.op}")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
+			error.code = 3
 			raise error
 		
 		match operation[1:-1]:
@@ -425,6 +429,7 @@ class Compiler:
 				error = Exception(f"Undefined symbol: {node.value.symbol}")
 				error.start_pos = node.start_pos
 				error.end_pos = node.end_pos
+				error.code = 4
 				raise error
 			
 			self.load_immediate({**self.variables, **self.arrays}.get(node.value.symbol))
@@ -452,6 +457,7 @@ class Compiler:
 				error = Exception(f"Unsupported unary operation: {node.op}")
 				error.start_pos = node.start_pos
 				error.end_pos = node.end_pos
+				error.code = 5
 				raise error
 
 			# Append the folded value to instructions
@@ -488,6 +494,7 @@ class Compiler:
 					error = Exception(f"Unsupported unary operation: {node.op}")
 					error.start_pos = node.start_pos
 					error.end_pos = node.end_pos
+					error.code = 6
 					raise error
 				
 				self.instructions = self.instructions[:start_pos]
@@ -553,6 +560,7 @@ class Compiler:
 				error = Exception(f"Unsupported unary operation: {node.op}")
 				error.start_pos = node.start_pos
 				error.end_pos = node.end_pos
+				error.code = 7
 				raise error
 
 	def visitIntLiteral(self, node: IntLiteral):
@@ -577,17 +585,9 @@ class Compiler:
 		return base_pointer
 
 	def visitIdentifier(self, node: Identifier):
-		# Load a symbol's value into the A register.
-		symbols = {**self.constants, **self.variables, **self.arrays}
-
-		if node.symbol not in symbols:
-			error = Exception(f"Undefined symbol: {node.symbol}")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			raise error
-
-		if node.symbol in self.constants:
-			# Value is already known, so load it into A register
+		# Load a symbol's value into the D register.
+		if node.symbol in self.constants.keys():
+			# Value is already known, so just load it into D register
 			value = self.constants[node.symbol]
 			if value in self.known_values: # Known values in the ISA
 				self.instructions.append(f"COMP {value} D")
@@ -598,7 +598,7 @@ class Compiler:
 			self.d_reg = value
 			return value
 
-		if node.symbol in self.variables: # It is a variable, in this case, it's value is not known
+		elif node.symbol in self.variables.keys(): # It is a variable, in this case it's value is not known
 			addr = self.variables[node.symbol]
 
 			if self.instructions[-1] == "COMP D M" and self.a_reg == addr:
@@ -610,7 +610,7 @@ class Compiler:
 		
 			self.d_reg = self.memory[addr]
 
-		if node.symbol in self.arrays: # It is an array, in this case, it will return the base pointer
+		elif node.symbol in self.arrays.keys(): # It is an array, in this case it will return the base pointer
 			addr = self.arrays[node.symbol]
 
 			if self.instructions[-1] == "COMP D M" and self.a_reg == addr:
@@ -621,24 +621,33 @@ class Compiler:
 				self.instructions += ["COMP M D"]
 
 			self.d_reg = self.memory[addr]
+		
+		else:
+			error = Exception(f"Undefined symbol: {node.symbol}")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			error.code = 8
+			raise error
 
 	def visitConstDefinition(self, node: ConstDefinition):
-		# Check if the symbol is already defined
+		# Check if symbol is already defined
 		if node.symbol.symbol in {**self.constants, **self.variables}:
 			error = Exception(f"Symbol {node.symbol.symbol} is already defined.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
+			error.code = 9
 			raise error
 		
-		expr = Compiler().generate_code(node.value)
+		expr = self.generate_code(node.value)
 		self.constants[node.symbol.symbol] = expr
 
 	def visitVarDeclaration(self, node: VarDeclaration):
-		# Check if the symbol is already defined
+		# Check if symbol is already defined
 		if node.identifier in {**self.constants, **self.variables, **self.arrays}:
 			error = Exception(f"Symbol {node.identifier} is already defined.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
+			error.code = 10
 			raise error
 
 		base_pointer: int|None = self.generate_code(node.value)
@@ -649,6 +658,7 @@ class Compiler:
 				error = Exception(f"Expected array length {len(node.value.elements)}, got {node.length} instead.")
 				error.start_pos = node.start_pos
 				error.end_pos = node.end_pos
+				error.code = 11
 				raise error
 
 			self.arrays[node.identifier] = memory_location
@@ -671,12 +681,14 @@ class Compiler:
 			error = Exception(f"Cannot assign to constant '{node.identifier.symbol}'.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
+			error.code = 12
 			raise error
 
 		if node.identifier.symbol not in self.variables:
 			error = Exception(f"Undefined variable: {node.identifier.symbol}.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
+			error.code = 13
 			raise error
 		
 		addr = self.variables[node.identifier.symbol]
@@ -699,11 +711,12 @@ class Compiler:
 			self.d_reg = node.end
 			return
 
-		# Check if the identifier is a variable
+		# Check if identifier is a variable
 		if node.identifier not in self.variables:
 			error = Exception(f"Variable {node.identifier} is not defined.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
+			error.code = 14
 			raise error
 
 		# Set iterator to start value
@@ -781,6 +794,7 @@ class Compiler:
 			error = Exception(f"Undefined array: {node.array.symbol}")
 			error.start_pos = node.array.start_pos
 			error.end_pos = node.array.end_pos
+			error.code = 15
 			raise error
 		
 		if isinstance(node.array, ArrayLiteral):
@@ -804,6 +818,7 @@ class Compiler:
 				error = Exception(res.error.details)
 				error.start_pos = res.error.start_pos
 				error.end_pos = res.error.end_pos
+				error.code = res.error.code
 				raise error
 			
 			self.instructions[-1] = "COMP D+A A"
@@ -816,6 +831,7 @@ class Compiler:
 			error = Exception(f"Undefined array: {node.array.symbol}")
 			error.start_pos = node.array.start_pos
 			error.end_pos = node.array.end_pos
+			error.code = 16
 			raise error
 		
 		if isinstance(node.array, ArrayLiteral):
