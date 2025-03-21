@@ -117,9 +117,9 @@ class Compiler:
 		self.allocated_registers.remove(register)
 		self.available_registers.add(register)
 
-	def make_jump_label(self, appending: bool = True):
+	def make_jump_label(self, appending: bool = True, name: str = "jmp"):
 		if appending:
-			self.instructions.append(f".jmp{self.jumps}")
+			self.instructions.append(f".{name}{self.jumps}")
 		
 		self.jumps_dict[self.jumps] = len(self.instructions) - 1
 		self.jumps += 1
@@ -174,7 +174,6 @@ class Compiler:
 			"OR" : "D|M",
 			"XOR": "D^M",
 			"MUL": "D*M",
-			"MOD": "D%M",
 			"RSHIFT": "D>>M",
 			"LSHIFT": "D<<M",
 			"LT": "D<M",
@@ -435,7 +434,7 @@ class Compiler:
 		# Check if the operand is a constant
 		if isinstance(node.value, IntLiteral):
 			value = node.value.value
-			if str(node.op.token_type) == "SUB":  # Negation
+			if str(node.op.token_type) == "SUB":    # Negation
 				folded_value = -value
 			elif str(node.op.token_type) == "ADD":  # Unary plus (does nothing)
 				folded_value = value
@@ -445,6 +444,10 @@ class Compiler:
 				folded_value = value + 1
 			elif str(node.op.token_type) == "DEC":  # Decrement
 				folded_value = value - 1
+			elif str(node.op.token_type) == "ABS":  # Absolute value
+				folded_value = abs(value)
+			elif str(node.op.token_type) == "SIGN": # Sign
+				folded_value = -1 if value < 0 else 0 if value == 0 else 1
 			else:
 				error = Exception(f"Unsupported unary operation: {node.op}")
 				error.start_pos = node.start_pos
@@ -477,6 +480,10 @@ class Compiler:
 					result = value + 1
 				elif str(node.op.token_type) == "DEC":
 					result = value - 1
+				elif str(node.op.token_type) == "ABS":
+					result = abs(value)
+				elif str(node.op.token_type) == "SIGN":
+					result = -1 if value < 0 else 0 if value == 0 else 1
 				else:
 					error = Exception(f"Unsupported unary operation: {node.op}")
 					error.start_pos = node.start_pos
@@ -494,7 +501,7 @@ class Compiler:
 				self.d_reg = result
 				return result
 
-			if str(node.op.token_type) == "SUB":  # Negation
+			if str(node.op.token_type) == "SUB":   # Negation
 				self.instructions.append("COMP -D D") # Negate the value in A
 				self.d_reg = -self.d_reg
 			elif str(node.op.token_type) == "ADD": # Does nothing
@@ -512,6 +519,36 @@ class Compiler:
 			elif str(node.op.token_type) == "DEC": # Decrement
 				self.instructions.append("COMP D-- D")
 				self.d_reg -= 1
+			elif str(node.op.token_type) == "ABS": # Absolute value
+				jump = self.make_jump_label(False)
+				self.load_immediate(f".abs{jump}")
+				self.instructions.append("COMP D JGE")
+				self.instructions.append("COMP -D D")
+				self.instructions.append(f".abs{jump}")
+			elif str(node.op.token_type) == "SIGN": # Sign
+				neg = self.make_jump_label(False)
+				pos = self.make_jump_label(False)
+				end = self.make_jump_label(False)
+				self.load_immediate(f".neg{neg}")
+				self.instructions.append("COMP D JLT")
+				self.load_immediate(f".pos{pos}")
+				self.instructions.append("COMP D JGT")
+				self.load_immediate(f".end{end}")
+				self.instructions.append("COMP D JMP")
+
+				self.instructions += [
+					f".neg{neg}",
+					"COMP -1 D",
+					f"LDIA .end{end}",
+					"COMP D JMP"
+				]
+				self.instructions += [
+					f".pos{pos}",
+					"COMP 1 D",
+					f"LDIA .end{end}",
+					"COMP D JMP"
+				]
+				self.instructions.append(f".end{end}")
 			else:
 				error = Exception(f"Unsupported unary operation: {node.op}")
 				error.start_pos = node.start_pos
@@ -550,7 +587,7 @@ class Compiler:
 			raise error
 
 		if node.symbol in self.constants:
-			# Value is already known, so just load it into A register
+			# Value is already known, so load it into A register
 			value = self.constants[node.symbol]
 			if value in self.known_values: # Known values in the ISA
 				self.instructions.append(f"COMP {value} D")
@@ -561,7 +598,7 @@ class Compiler:
 			self.d_reg = value
 			return value
 
-		if node.symbol in self.variables: # It is a variable, in this case it's value is not known
+		if node.symbol in self.variables: # It is a variable, in this case, it's value is not known
 			addr = self.variables[node.symbol]
 
 			if self.instructions[-1] == "COMP D M" and self.a_reg == addr:
@@ -573,7 +610,7 @@ class Compiler:
 		
 			self.d_reg = self.memory[addr]
 
-		if node.symbol in self.arrays: # It is an array, in this case it will return the base pointer
+		if node.symbol in self.arrays: # It is an array, in this case, it will return the base pointer
 			addr = self.arrays[node.symbol]
 
 			if self.instructions[-1] == "COMP D M" and self.a_reg == addr:
@@ -586,7 +623,7 @@ class Compiler:
 			self.d_reg = self.memory[addr]
 
 	def visitConstDefinition(self, node: ConstDefinition):
-		# Check if symbol is already defined
+		# Check if the symbol is already defined
 		if node.symbol.symbol in {**self.constants, **self.variables}:
 			error = Exception(f"Symbol {node.symbol.symbol} is already defined.")
 			error.start_pos = node.start_pos
@@ -597,7 +634,7 @@ class Compiler:
 		self.constants[node.symbol.symbol] = expr
 
 	def visitVarDeclaration(self, node: VarDeclaration):
-		# Check if symbol is already defined
+		# Check if the symbol is already defined
 		if node.identifier in {**self.constants, **self.variables, **self.arrays}:
 			error = Exception(f"Symbol {node.identifier} is already defined.")
 			error.start_pos = node.start_pos
@@ -662,7 +699,7 @@ class Compiler:
 			self.d_reg = node.end
 			return
 
-		# Check if identifier is a variable
+		# Check if the identifier is a variable
 		if node.identifier not in self.variables:
 			error = Exception(f"Variable {node.identifier} is not defined.")
 			error.start_pos = node.start_pos
@@ -681,7 +718,7 @@ class Compiler:
 			self.instructions += [f"COMP D M"]
 		
 		self.memory[location] = node.start
-		jump: int = self.make_jump_label()
+		jump: int = self.make_jump_label(name="for")
 
 		self.generate_code(node.body)
 
@@ -699,32 +736,32 @@ class Compiler:
 					self.d_reg = self.memory[location] - 1
 		else:
 			self.load_immediate(node.step)
-			self.instructions.append(f"COMP A D // Step value (.jmp{jump})")
+			self.instructions.append(f"COMP A D // Step value (.for{jump})")
 			self.load_immediate(location, f"{node.identifier}")
 			self.instructions.append("COMP D+M DM")
 			self.d_reg += self.memory[location]
 
-		self.load_immediate(node.end, f"End value (.jmp{jump})")
+		self.load_immediate(node.end, f"End value (.for{jump})")
 		self.instructions.append("COMP A-D D")
 		self.d_reg = self.a_reg - self.d_reg
-		self.load_immediate(f".jmp{jump}", f"Jump to start (.jmp{jump})")
+		self.load_immediate(f".for{jump}", f"Jump to start (.for{jump})")
 		self.instructions.append("COMP D JGT") if node.step > 0 else self.instructions.append("COMP D JLT")
 		self.a_reg = self.jumps_dict[jump]
 
 	def visitWhileLoop(self, node: WhileLoop):
-		jump: int = self.make_jump_label()
-		end_loop: int = self.make_jump_label(appending=False)
+		jump: int = self.make_jump_label(name="while")
+		end_loop: int = self.make_jump_label(appending=False, name="endwhile")
 
 		self.generate_code(node.condition)
-		self.load_immediate(f".jmp{end_loop}")
+		self.load_immediate(f".endwhile{end_loop}")
 		self.a_reg = self.jumps_dict[end_loop]
 		self.instructions.append("COMP D JLE")
 		self.generate_code(node.body)
-		self.load_immediate(f".jmp{jump}")
+		self.load_immediate(f".while{jump}")
 		self.instructions.append(f"COMP 0 JMP")
 		self.a_reg = self.jumps_dict[jump]
 
-		self.instructions.append(f".jmp{end_loop}")
+		self.instructions.append(f".endwhile{end_loop}")
 		self.a_reg = self.jumps_dict[end_loop]
 	
 	def visitPlotExpr(self, node: PlotExpr):
@@ -775,7 +812,6 @@ class Compiler:
 			self.d_reg = self.memory.get(self.a_reg, self.d_reg)
 
 	def visitArraySet(self, node: ArraySet):
-		res = CompileResult()
 		if isinstance(node.array, Identifier) and node.array.symbol not in self.arrays:
 			error = Exception(f"Undefined array: {node.array.symbol}")
 			error.start_pos = node.array.start_pos
@@ -818,19 +854,19 @@ class Compiler:
 			self.free_register(pointer_reg)
 
 	def visitIfStatement(self, node: IfStatement):
-		end = self.make_jump_label(False)
+		end = self.make_jump_label(False, "endif")
 		for condition, body in node.cases:
 			self.generate_code(condition)
 			
-			jump = self.make_jump_label(False)
-			self.load_immediate(f".jmp{jump}")
+			jump = self.make_jump_label(False, "condition")
+			self.load_immediate(f".condition{jump}")
 			self.instructions.append("COMP D JEQ")
 			self.generate_code(body)
-			self.load_immediate(f".jmp{end}", "End if")
+			self.load_immediate(f".endif{end}", "End if")
 			self.instructions.append("COMP 0 JMP")
-			self.instructions.append(f".jmp{jump}")
+			self.instructions.append(f".condition{jump}")
 		
 		if node.else_case:
 			self.generate_code(node.else_case)
 		
-		self.instructions.append(f".jmp{end}")
+		self.instructions.append(f".endif{end}")
