@@ -27,6 +27,9 @@ value1 == value2 // Equal to
 value1 != value2 // Not equal to
 value1 > value2  // Greater than
 value1 >= value2 // Greater than or equal to
+
+#value           // Absolute value
+$value           // Sign of value (-1 if negative, 0 if zero, 1 if positive)
 ```
 
 ### `Data types`
@@ -87,7 +90,7 @@ if condition1 {
     do_another_thing
 }
 ```
-Finally, you can use the `else` keyword to execute something if all above conditions are false:
+Finally, you can use the `else` keyword to execute something if all the above conditions are false:
 ```
 if condition1 {
     do_something
