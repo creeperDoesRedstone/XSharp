@@ -128,8 +128,8 @@ class Compiler:
 		return self.jumps - 1
 
 	def comparison(self, reg1: int, reg2: int, jump: Literal["JLT", "JLE", "JEQ", "JGT", "JNE", "JGE"]):
-		true = self.make_jump_label(False)
-		end = self.make_jump_label(False)
+		true = self.make_jump_label(False, "true")
+		end = self.make_jump_label(False, "false")
 
 		self.load_immediate(f"r{reg1}")
 		self.instructions.append("COMP M D")
@@ -306,8 +306,8 @@ class Compiler:
 				bits = tuple(self.available_registers - self.allocated_registers)[0]
 				self.allocate_register(bits)
 
-				rshift = self.make_jump_label(False)
-				loop = self.make_jump_label()
+				rshift = self.make_jump_label(False, "shift")
+				loop = self.make_jump_label(name="loop")
 
 				# reg1 is multiplier, reg2 is multiplicand
 				self.instructions.append("COMP 1 D")
@@ -343,8 +343,8 @@ class Compiler:
 				self.free_register(bits)
 			
 			case ">>":
-				loop = self.make_jump_label()
-				end = self.make_jump_label(False)
+				loop = self.make_jump_label(name="loop")
+				end = self.make_jump_label(False, "end")
 
 				self.load_immediate(f"r{reg2}")
 				self.instructions.append("COMP M D")
@@ -370,8 +370,8 @@ class Compiler:
 				self.instructions.append("COMP M D")
 
 			case "<<":
-				loop = self.make_jump_label()
-				end = self.make_jump_label()
+				loop = self.make_jump_label(name="loop")
+				end = self.make_jump_label(False, "end")
 
 				self.load_immediate(f"r{reg2}")
 				self.instructions.append("COMP M D")
@@ -527,15 +527,15 @@ class Compiler:
 				self.instructions.append("COMP D-- D")
 				self.d_reg -= 1
 			elif str(node.op.token_type) == "ABS": # Absolute value
-				jump = self.make_jump_label(False)
+				jump = self.make_jump_label(False, "abs")
 				self.load_immediate(f".abs{jump}")
 				self.instructions.append("COMP D JGE")
 				self.instructions.append("COMP -D D")
 				self.instructions.append(f".abs{jump}")
 			elif str(node.op.token_type) == "SIGN": # Sign
-				neg = self.make_jump_label(False)
-				pos = self.make_jump_label(False)
-				end = self.make_jump_label(False)
+				neg = self.make_jump_label(False, "neg")
+				pos = self.make_jump_label(False, "pos")
+				end = self.make_jump_label(False, "end")
 				self.load_immediate(f".neg{neg}")
 				self.instructions.append("COMP D JLT")
 				self.load_immediate(f".pos{pos}")
