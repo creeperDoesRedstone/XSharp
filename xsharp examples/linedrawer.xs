@@ -7,8 +7,8 @@ var x: int = x1
 var y: int = y1
 var dx: int = #(x2 - x1)
 var dy: int = #(y2 - y1)
-const s1: int = $(x2 - x1)
-const s2: int = $(y2 - y1)
+const s1 (x2 - x1)
+const s2 (y2 - y1)
 
 var interchange: int = 0
 var temp: int = 0
