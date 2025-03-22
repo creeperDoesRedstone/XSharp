@@ -721,44 +721,31 @@ class Compiler:
 
 		# Set iterator to start value
 		location = self.variables[node.identifier]
-		if node.start in self.known_values:
-			self.load_immediate(location, "Start value")
-			self.instructions += [f"COMP {node.start} M"]
-		else:
-			self.load_immediate(node.start)
-			self.instructions += ["COMP A D"]
-			self.load_immediate(location, "Start value")
-			self.instructions += [f"COMP D M"]
+		self.generate_code(node.start)
+		self.load_immediate(location, "Start value")
+		self.instructions += [f"COMP D M"]
 		
-		self.memory[location] = node.start
+		self.memory[location] = self.d_reg
 		jump: int = self.make_jump_label(name="for")
 
 		self.generate_code(node.body)
 
-		if node.step in (-1, 0, 1):
-			self.load_immediate(location, f"{node.identifier}")
-			match node.step:
-				case 0:
-					self.instructions.append("COMP M D")
-					self.d_reg = self.memory.get(location)
-				case 1:
-					self.instructions.append("COMP M++ DM")
-					self.d_reg = self.memory[location] + 1
-				case -1:
-					self.instructions.append("COMP M-- DM")
-					self.d_reg = self.memory[location] - 1
-		else:
-			self.load_immediate(node.step)
-			self.instructions.append(f"COMP A D // Step value (.for{jump})")
-			self.load_immediate(location, f"{node.identifier}")
-			self.instructions.append("COMP D+M DM")
-			self.d_reg += self.memory[location]
+		self.instructions.append(f"// Step value (.for{jump})")
+		self.generate_code(node.step)
+		step_value: int = self.d_reg
+		
+		self.load_immediate(location, f"{node.identifier}")
+		self.instructions.append("COMP D+M DM")
+		self.d_reg += self.memory[location]
 
-		self.load_immediate(node.end, f"End value (.for{jump})")
-		self.instructions.append("COMP A-D D")
-		self.d_reg = self.a_reg - self.d_reg
+		self.instructions.append(f"// End value (.for{jump})")
+		self.generate_code(node.end)
+		self.load_immediate(location, f"{node.identifier}")
+		self.instructions.append("COMP D-M D")
+		self.d_reg -= self.memory[location]
+
 		self.load_immediate(f".for{jump}", f"Jump to start (.for{jump})")
-		self.instructions.append("COMP D JGT") if node.step > 0 else self.instructions.append("COMP D JLT")
+		self.instructions.append("COMP D JGT") if step_value > 0 else self.instructions.append("COMP D JLT")
 		self.a_reg = self.jumps_dict[jump]
 
 	def visitWhileLoop(self, node: WhileLoop):
