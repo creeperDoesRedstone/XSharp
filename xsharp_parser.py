@@ -99,7 +99,7 @@ class Assignment:
 		self.expr = expr
 
 class ForLoop:
-	def __init__(self, start_pos: Position, end_pos: Position, identifier: str, start: int, end: int, step: int, body: Statements):
+	def __init__(self, start_pos: Position, end_pos: Position, identifier: str, start: Any, end: Any, step: Any, body: Statements):
 		self.start_pos = start_pos
 		self.end_pos = end_pos
 		self.identifier = identifier
@@ -338,13 +338,8 @@ class Parser:
 				"Expected ':' after 'start' keyword."
 			))
 		self.advance()
-		if self.current_token.token_type != TT.NUM:
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected a start value."
-			))
-		start = self.current_token.value
-		self.advance()
+		start = res.register(self.comparison())
+		if res.error: return res
 
 		if self.current_token != Token(None, None, TT.KEYWORD, "end"):
 			return res.fail(InvalidSyntax(
@@ -358,13 +353,8 @@ class Parser:
 				"Expected ':' after 'end' keyword."
 			))
 		self.advance()
-		if self.current_token.token_type != TT.NUM:
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected an end value."
-			))
-		end = self.current_token.value
-		self.advance()
+		end = res.register(self.comparison())
+		if res.error: return res
 
 		if self.current_token != Token(None, None, TT.KEYWORD, "step"):
 			return res.fail(InvalidSyntax(
@@ -378,22 +368,8 @@ class Parser:
 				"Expected ':' after 'step' keyword."
 			))
 		self.advance()
-		if self.current_token.token_type not in (TT.NUM, TT.SUB):
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected a step value."
-			))
-		negative = self.current_token.token_type == TT.SUB
-		if negative:
-			self.advance()
-			if self.current_token.token_type != TT.NUM:
-				return res.fail(InvalidSyntax(
-					self.current_token.start_pos, self.current_token.end_pos,
-					"Expected a step value."
-				))
-
-		step = self.current_token.value * (-1)**negative
-		self.advance()
+		step = res.register(self.comparison())
+		if res.error: return res
 
 		if self.current_token.token_type != TT.LBR:
 			return res.fail(InvalidSyntax(
