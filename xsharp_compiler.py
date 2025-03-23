@@ -609,7 +609,6 @@ class Compiler:
 				self.instructions += ["COMP M D"]
 		
 			self.d_reg = self.memory[addr]
-			return self.d_reg
 
 		elif node.symbol in self.arrays.keys(): # It is an array, in this case it will return the base pointer
 			addr = self.arrays[node.symbol]
@@ -622,7 +621,6 @@ class Compiler:
 				self.instructions += ["COMP M D"]
 
 			self.d_reg = self.memory[addr]
-			return self.d_reg
 		
 		else:
 			error = Exception(f"Undefined symbol: {node.symbol}")
