@@ -609,6 +609,7 @@ class Compiler:
 				self.instructions += ["COMP M D"]
 		
 			self.d_reg = self.memory[addr]
+			return self.d_reg
 
 		elif node.symbol in self.arrays.keys(): # It is an array, in this case it will return the base pointer
 			addr = self.arrays[node.symbol]
@@ -621,6 +622,7 @@ class Compiler:
 				self.instructions += ["COMP M D"]
 
 			self.d_reg = self.memory[addr]
+			return self.d_reg
 		
 		else:
 			error = Exception(f"Undefined symbol: {node.symbol}")
@@ -662,9 +664,11 @@ class Compiler:
 				raise error
 
 			self.arrays[node.identifier] = memory_location
+			self.memory[memory_location] = base_pointer
 			base_pointer: int
 			self.load_immediate(base_pointer, f"array_{node.identifier}")
 			self.instructions.append("COMP A D") # Load base pointer
+			self.d_reg = self.a_reg
 		else:
 			self.variables[node.identifier] = memory_location # Memory addresses start at location 16
 		
@@ -793,8 +797,7 @@ class Compiler:
 			self.instructions.append("COMP M D")
 			self.d_reg = self.memory[self.a_reg]
 		else: # Identifier, trickier to manage but still doable
-			self.generate_code(node.array)
-			self.instructions.append("COMP D A") # Base pointer
+			base_pointer = self.memory[self.arrays[node.array.symbol]]
 
 			res.register(self.compile(Statements(
 				node.index.start_pos,
@@ -808,7 +811,9 @@ class Compiler:
 				error.code = res.error.code
 				raise error
 			
-			self.instructions[-1] = "COMP D+A A"
+			self.instructions = self.instructions[:-1]
+			self.load_immediate(base_pointer, "Access base pointer")
+			self.instructions.append("COMP D+A A")
 			self.a_reg += self.d_reg
 			self.instructions.append("COMP M D")
 			self.d_reg = self.memory.get(self.a_reg, self.d_reg)
@@ -839,6 +844,7 @@ class Compiler:
 			self.d_reg = self.memory.get(self.a_reg, 0)
 		else: # Identifier, trickier to manage but still doable
 			self.generate_code(node.array)
+			base_pointer = self.d_reg
 
 			pointer_reg = tuple(self.available_registers - self.allocated_registers)[0]
 			self.allocate_register(pointer_reg)
