@@ -5,13 +5,13 @@ var i: int = 0
 var j: int = 0
 var temp: int = 0
 
-for i start: length-1 end: 0 step: -1 {
+for i start: length-- end: 0 step: -1 {
     for j start: 0 end: i step: 1 {
-        if array[j] > array[j+1] {
+        if array[j] > array[j++] {
             // Swap
             temp = array[j]
-            array[j] = array[j+1]
-            array[j+1] = temp
+            array[j] = array[j++]
+            array[j++] = temp
         }
     }
 }
