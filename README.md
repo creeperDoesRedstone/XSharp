@@ -132,7 +132,17 @@ COMP operation dest? jump?
 ```
 ### `PLOT`
 This instruction plots a value (`0` or `1`) to the screen buffer.
-The x and y co-ordinates are stored in 2 ports (currently with addresses 2048 and 2049).
+The x and y coordinates are stored in 2 ports (currently with addresses 2048 and 2049).
 ```
 PLOT value
+```
+### `BUFR`
+This instruction is responsible for porting the buffer data to the screen.
+You can specify one of four modes:
+  - `move`: Moves the buffer's content onto the screen, erasing previous data on the screen and clearing the buffer.
+  - `append`: Appends the buffer's content onto the screen while charing the buffer.
+  - `update`: Same as `move`, but doesn't clear the buffer.
+  - `stamp`: Same as `append`, but doesn't clear the buffer.
+```
+BUFR mode
 ```
