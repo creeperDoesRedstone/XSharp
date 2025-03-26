@@ -114,23 +114,25 @@ plot x y 0/1
 ```
 
 ## XAssembly
-There are currently 5 instructions: `LDIA`, `COMP`, `NOOP`, `HALT`, and `PLOT`:
+### `NOOP`
+This instruction does nothing.
+### `HALT`
+This instruction stops the execution of the program.
+### `LDIA`
+This instruction loads a 14-bit signed integer into the `Address` register.
 ```
-LDIA: Loads a value into the A register.
-Syntax: LDIA value
+LDIA value
 ```
+### `COMP`
+This instruction computes the given operation. Valid operations can be found in the `xasm_assember.py` file.
+It can store the result in the `Data` register, the `Address` register, and the RAM location pointed by the `Address` register if specified.
+It can also perform a branch if specified and matches the result.
 ```
-COMP: Executes the ALU code, stores it into the specified destination(s), and jumps if necessary.
-Syntax: COMP code dest? jump?
-
-Destinations: Data (D) register, Address (A) register, Memory (M)
-Jumps: JLT, JEQ, JLE, JGT, JNE, JGE, JMP
+COMP operation dest? jump?
 ```
+### `PLOT`
+This instruction plots a value (`0` or `1`) to the screen buffer.
+The x and y co-ordinates are stored in 2 ports (currently with addresses 2048 and 2049).
 ```
-PLOT: Plot the value (0 or 1) based on the x and y values stored in 2 ports.
-Syntax: PLOT value
-```
-```
-NOOP: Nothing!
-HALT: Stops the execution of the program.
+PLOT value
 ```
