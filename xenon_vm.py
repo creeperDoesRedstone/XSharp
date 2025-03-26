@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QMainWindow, QApplication, QLabel, QPushButton, QTextEdit, QFileDialog
+from PyQt6.QtWidgets import QMainWindow, QApplication, QLabel, QPushButton, QFileDialog
 from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
 from PyQt6.QtCore import QRegularExpression
 from PyQt6 import uic
@@ -14,15 +14,17 @@ class BinSyntaxHighlighter(QSyntaxHighlighter):
 		self.highlighting_rules: list[tuple[QRegularExpression, QTextCharFormat]] = []
 
 		self.create_format("comp_inst", QColor(120, 174, 255))
-		self.create_format("load_inst", QColor(255, 200, 150))
+		self.create_format("load_inst", QColor(255, 170, 0))
 		self.create_format("halt_inst", QColor(255, 150, 150), True)
 		self.create_format("plot_inst", QColor(255, 225, 115), italic=True)
 		self.create_format("plot_inst_off", QColor(117, 76, 19), italic=True)
+		self.create_format("buffer_inst", QColor(213, 117, 157))
 
 		self.add_rule(r"\b\d{14}10$\b", "load_inst")
 		self.add_rule(r"\b\d{14}11$\b", "comp_inst")
-		self.add_rule(r"\b1\d{13}01$\b", "plot_inst")
-		self.add_rule(r"\b0\d{13}01$\b", "plot_inst_off")
+		self.add_rule(r"\b1\d{12}101$\b", "plot_inst")
+		self.add_rule(r"\b0\d{12}101$\b", "plot_inst_off")
+		self.add_rule(r"\b\d{13}001\b", "buffer_inst")
 		self.add_rule(r"\b0000000000000100\b", "halt_inst")
 
 	def create_format(self, name: str, color: QColor, bold: bool = False, italic: bool = False):
@@ -50,9 +52,6 @@ class VirtualMachine(QMainWindow):
 	def __init__(self):
 		super().__init__()
 		self.setFixedSize(800, 600)
-		self.setWindowTitle("Xenon VM")
-		self.setFont(QFont(["JetBrains Mono", "Consolas"], 11))
-
 		self.init_GUI()
 		self.init_memory()
 		self.init_screen(48, 28)
@@ -67,7 +66,7 @@ class VirtualMachine(QMainWindow):
 			self.file_text.toPlainText().strip().splitlines()
 		))
 
-		self.export_button.clicked.connect(lambda: write_screen(self.lit_pixels))
+		self.export_button.clicked.connect(lambda: write_screen(self.screen))
 
 		self.load_file_button.clicked.connect(self.load_file)
 
@@ -105,7 +104,8 @@ class VirtualMachine(QMainWindow):
 		self.screen_length = length
 		self.screen_width = width
 
-		self.lit_pixels: list[tuple[int, int]] = []
+		self.screen: list[tuple[int, int]] = []
+		self.buffer: list[tuple[int, int]] = []
 
 		for x in range(self.screen_length):
 			for y in range(self.screen_width):
@@ -147,6 +147,10 @@ class VirtualMachine(QMainWindow):
 		self.current_inst.setText(f"Instruction: {self.program_counter}")
 
 		op_code = current_inst[-2:]
+
+		def raise_error(details: str):
+			error_message = f"Instruction {self.program_counter}:\n{current_inst}\n{details}"
+			raise Exception(error_message)
 
 		if current_inst == NOOP:
 			self.program_counter += 1
@@ -206,28 +210,41 @@ class VirtualMachine(QMainWindow):
 				self.program_counter += 1
 
 		elif op_code == "01": # I/O instruction
-			if current_inst[13] == "1": # Output
+			ON_STYLESHEET: str = "background-color: rgb(255, 225, 115); border: 1px solid rgb(204, 171, 51);"
+			OFF_STYLESHEET: str = "background-color: rgb(117, 76, 19); border: 1px solid rgb(89, 52, 0);"
+			if current_inst[13] == "1": # Plot
 				val = int(current_inst[0])
 				x = self.memory_value[Compiler().x_addr]
 				y = self.memory_value[Compiler().y_addr]
 
-				if x < 0:
-					raise Exception("X value cannot be negative!")
-				if x >= 48:
-					raise Exception("X value cannot be greater than 47!")
-				if y < 0:
-					raise Exception("Y value cannot be negative!")
-				if y >= 28:
-					raise Exception("Y value cannot be greater than 27!")
-				
-				pixel: QLabel = getattr(self, f"px[{x}][{y}]")
+				if x < 0: raise_error("X value cannot be negative!")
+				if x >= 48: raise_error("X value cannot be greater than 47!")
+				if y < 0: raise_error("Y value cannot be negative!")
+				if y >= 28: raise_error("Y value cannot be greater than 27!")
 				
 				if val == 0:
-					pixel.setStyleSheet("background-color: rgb(117, 76, 19); border: 1px solid rgb(89, 52, 0);")
-					if (x, y) in self.lit_pixels: self.lit_pixels.remove((x, y))
+					if (x, y) in self.buffer: self.buffer.remove((x, y))
 				else:
-					pixel.setStyleSheet("background-color: rgb(255, 225, 115); border: 1px solid rgb(204, 171, 51);")
-					self.lit_pixels.append((x, y))
+					if (x, y) not in self.buffer: self.buffer.append((x, y))
+			else: # Update buffer
+				op_code = current_inst[0:2]
+
+				if op_code[1] == "0":
+					for x, y in self.screen:
+						pixel: QLabel = getattr(self, f"px[{x}][{y}]")
+						pixel.setStyleSheet(OFF_STYLESHEET)
+					self.screen = self.buffer
+					for x, y in self.screen:
+						pixel: QLabel = getattr(self, f"px[{x}][{y}]")
+						pixel.setStyleSheet(ON_STYLESHEET)
+				else:
+					for x, y in self.buffer:
+						pixel: QLabel = getattr(self, f"px[{x}][{y}]")
+						pixel.setStyleSheet(ON_STYLESHEET)
+						if (x, y) not in self.screen: self.screen.append((x, y))
+
+				if op_code[0] == "0":
+					self.buffer = []
 			
 			self.program_counter += 1
 		
@@ -236,7 +253,7 @@ class VirtualMachine(QMainWindow):
 
 		return False
 
-	def run(self, code: str, max_steps: int|None = None):
+	def run(self, code: str, max_steps: int|None = None, clock_speed: int = 0):
 		NOOP = "0" * 16
 
 		PROM = code.strip().splitlines()
@@ -250,11 +267,12 @@ class VirtualMachine(QMainWindow):
 		self.set_value(self.memory, 0, "M")
 
 		# Clear screen
-		for x, y in self.lit_pixels:
+		for x, y in self.screen:
 			pixel: QLabel = getattr(self, f"px[{x}][{y}]")
 			pixel.setStyleSheet("background-color: rgb(117, 76, 19); border: 1px solid rgb(89, 52, 0)")
 		
-		self.lit_pixels.clear()
+		self.screen.clear()
+		self.buffer.clear()
 		if not PROM: return False
 
 		while not self.step(PROM): # step() function returns True when encountering a HALT instruction
