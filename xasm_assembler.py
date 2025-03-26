@@ -134,10 +134,23 @@ def assemble(ftxt: str):
 
 					binary_result.append(f"{bin(code)[2:].zfill(8)}{''.join(dest)}{bin(jump)[2:].zfill(3)}11")
 
-				case "PLOT": # Plot pixel to screen
-					if len(ln) != 2: raise SyntaxError(f"Line {line_num + 1}: Expected 1 argument for instruction NOOP, found {len(ln) - 1} arguments instead.")
+				case "PLOT": # Plot pixel to buffer
+					if len(ln) != 2: raise SyntaxError(f"Line {line_num + 1}: Expected 1 argument for instruction PLOT, found {len(ln) - 1} arguments instead.")
 
 					binary_result.append(f"{ln[1]}{'0' * 12}101")
+
+				case "BUFR": # Buffer instructions
+					if len(ln) != 2: raise SyntaxError(f"Line {line_num + 1}: Expected 1 argument for instruction BUFR, found {len(ln) - 1} arguments instead.")
+
+					op_code: str = ""
+					match ln[1]:
+						case "move": op_code = "00"
+						case "append": op_code = "01"
+						case "update": op_code = "10"
+						case "stamp": op_code = "11"
+						case _: raise ValueError(f"Line {line_num + 1}: Expected 'move', 'append', 'flip', or 'stamp', got '{ln[1]}' instead.")
+					
+					binary_result.append(f"{op_code}{'0' * 11}001")
 
 				case _:
 					if not (line.startswith(".") and len(ln) == 1):
@@ -162,14 +175,16 @@ class ASMSyntaxHighlighter(QSyntaxHighlighter):
 		self.create_format("comment", QColor(98, 133, 139), italic=True)
 		self.create_format("number", QColor(85, 91, 239))
 		self.create_format("label", QColor("white"), italic=True)
+		self.create_format("parameter", QColor(101, 171, 235))
 
 		self.add_rule(r"\b(D|A|M|DA|AM|DM|DAM)\b", "destination")
-		self.add_rule(r"\b(NOOP|HALT|LDIA|COMP|PLOT)\b", "instruction")
+		self.add_rule(r"\b(NOOP|HALT|LDIA|COMP|PLOT|BUFR)\b", "instruction")
 		self.add_rule(r"\b(JLT|JEQ|JLE|JGT|JNE|JGE|JMP)\b", "jump")
 		self.add_rule(r"\b(r\d+)\b", "register")
 		self.add_rule(r"\b\d+(\.\d+)?\b", "number")
 		self.add_rule(r"(\+|-|&|\||~|\^|>>)", "operation")
 		self.add_rule(r"(?<!\S)\.\w+", "label")
+		self.add_rule(r"\b(move|append|update|stamp)\b", "parameter")
 		self.add_rule(r"//[^\n]*", "comment")
 
 	def create_format(self, name: str, color: QColor, bold: bool = False, italic: bool = False):
