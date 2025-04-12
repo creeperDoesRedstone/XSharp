@@ -1,2 +1,4 @@
 Add highlighting for multiline comments
 Add functions
+Add option to see register contents in the VM
+Add clock in vm
