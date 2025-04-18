@@ -2,7 +2,8 @@ from xsharp_parser import *
 from xsharp_helper import CompilationError
 from typing import Literal
 
-## COMPILE RESULT
+# Error codes: 18
+
 class CompileResult:
 	def __init__(self):
 		self.value, self.error = None, None
@@ -19,26 +20,29 @@ class CompileResult:
 		self.error = error
 		return self
 
-## COMPILER
 class Compiler:
+	X_ADDR = 2048
+	Y_ADDR = 2049
+	INPUT_ADDR = 2050
+
 	def __init__(self):
 		self.instructions: list[str] = []
 		self.allocated_registers: set = set()
 		self.available_registers: set[int] = {i for i in range(16)}
-		self.constants: dict[str, int] = {"true": -1, "false": 0}
-		self.variables: dict[str, int] = {}
-		self.arrays: dict[str, int] = {}
 		self.jumps_dict: dict[int, int] = {}
 		self.memory: dict[int, int] = {}
+		self.subroutine_defs: list[SubroutineDef] = []
+
+		self.symbols: dict[str, tuple[str, int]] = {
+			"true": ("const", -1),
+			"false": ("const", 0)
+		}
 
 		self.vars: int = 0
 		self.jumps: int = 0
 
 		self.a_reg = 0
 		self.d_reg = 0
-
-		self.x_addr = 2048
-		self.y_addr = 2049
 
 		self.input_addr = 2050
 
@@ -59,13 +63,18 @@ class Compiler:
 
 			self.instructions.append("HALT")  # Ensure program ends with HALT
 			self.peephole_optimize()
+
+			for sub in self.subroutine_defs:
+				self.instructions.append(f".sub_{sub.name}")
+				self.generate_code(sub.body)
+				self.instructions.append("RETN")
 			
 			return result.success(self.instructions)
 		
 		except Exception as e:
 			return result.fail(CompilationError(e.start_pos, e.end_pos, f"{e}\nError code: {e.code}"))
 
-	def generate_code(self, node):
+	def generate_code(self, node: Any):
 		method_name = f"visit{type(node).__name__}"
 		return getattr(self, method_name, self.noVisitMethod)(node)
 
@@ -155,7 +164,7 @@ class Compiler:
 			(len(self.instructions) > 0 and self.instructions[-1].startswith(".")):
 				if comment: self.instructions.append(f"LDIA {value} // {comment}")
 				else: self.instructions.append(f"LDIA {value}")
-		self.a_reg = value
+		self.a_reg = value if isinstance(value, int) or not value.startswith("r") else int(value[1:])
 
 	def noVisitMethod(self, node):
 		error = Exception(f"Unknown AST node type: {type(node).__name__}")
@@ -193,16 +202,16 @@ class Compiler:
 			value: str
 
 			if isinstance(node.left, Identifier):
-				if node.left.symbol in self.constants:
-					left = f"{self.constants[node.left.symbol]}"
+				if self.symbols.get(node.left.symbol, ("null", 0))[0] == "const":
+					left = f"{self.symbols[node.left.symbol][1]}"
 				else: folding = False
 			else: left = f"{node.left.value}"
 
 		if folding:
 			if isinstance(node.right, (IntLiteral, Identifier)):
 				if isinstance(node.right, Identifier):
-					if node.right.symbol in self.constants:
-						right = f"{self.constants[node.right.symbol]}"
+					if self.symbols.get(node.right.symbol, ("null", 0))[0] == "const":
+						right = f"{self.symbols[node.right.symbol][1]}"
 					else: folding = False
 				else:
 					right = f"{node.right.value}"
@@ -249,13 +258,13 @@ class Compiler:
 		self.allocate_register(reg2)
 
 		# Optimizing +/- 1
-		if isinstance(node.left, Identifier) and node.left.symbol not in self.constants and right == 1:
+		if isinstance(node.left, Identifier) and self.symbols.get(node.left.symbol, ("const", 0))[0] != "const" and right == 1:
 			if str(node.op.token_type) in ("ADD", "SUB"):
 				self.instructions = self.instructions[:start_pos]
 				self.a_reg = temp_a_reg
-				self.load_immediate(self.variables[node.left.symbol], node.left.symbol)
+				self.load_immediate(self.symbols[node.left.symbol][1], node.left.symbol)
 				self.instructions.append("COMP M++ D" if str(node.op.token_type) == "ADD" else "COMP M-- D")
-				self.d_reg = self.memory[self.variables[node.left.symbol]]
+				self.d_reg = self.memory[self.symbols[node.left.symbol][1]]
 				self.free_register(reg1)
 				self.free_register(reg2)
 
@@ -343,58 +352,71 @@ class Compiler:
 				self.free_register(bits)
 			
 			case ">>":
-				loop = self.make_jump_label(name="loop")
-				end = self.make_jump_label(False, "end")
+				if right in (0, 1):
+					self.instructions = self.instructions[:start_pos]
+					if right == 1: self.instructions.append("COMP >>M D")
+					self.d_reg = self.memory[self.a_reg] >> 1
+				else:
+					loop = self.make_jump_label(name="loop")
+					end = self.make_jump_label(False, "end")
 
-				self.load_immediate(f"r{reg2}")
-				self.instructions.append("COMP M D")
-				self.d_reg = self.memory.get(reg2, 0)
+					self.load_immediate(f"r{reg2}")
+					self.instructions.append("COMP M D")
+					self.d_reg = self.memory.get(reg2, 0)
 
-				self.load_immediate(f".end{end}")
-				self.instructions.append("COMP D JLE")
+					self.load_immediate(f".end{end}")
+					self.instructions.append("COMP D JLE")
 
-				self.load_immediate(f"r{reg2}")
-				self.instructions.append("COMP D-- M")
+					self.load_immediate(f"r{reg2}")
+					self.instructions.append("COMP D-- M")
 
-				self.load_immediate(f"r{reg1}")
-				self.instructions.append("COMP M D")
-				self.instructions.append("COMP >>D M")
-				self.d_reg = self.memory.get(reg1, 0)
-				self.memory[reg1] >>= 1
+					self.load_immediate(f"r{reg1}")
+					self.instructions.append("COMP M D")
+					self.instructions.append("COMP >>D M")
+					self.d_reg = self.memory.get(reg1, 0)
+					self.memory[reg1] >>= 1
 
-				self.load_immediate(f".loop{loop}")
-				self.instructions.append("COMP 0 JMP")
+					self.load_immediate(f".loop{loop}")
+					self.instructions.append("COMP 0 JMP")
 
-				self.instructions.append(f".end{end}")
-				self.load_immediate(f"r{reg1}")
-				self.instructions.append("COMP M D")
+					self.instructions.append(f".end{end}")
+					self.load_immediate(f"r{reg1}")
+					self.instructions.append("COMP M D")
 
 			case "<<":
-				loop = self.make_jump_label(name="loop")
-				end = self.make_jump_label(False, "end")
+				if right in (0, 1):
+					self.instructions = self.instructions[:start_pos]
+					if right == 1:
+						self.load_immediate(f"r{reg1}")
+						self.instructions.append("COMP M D")
+						self.instructions.append("COMP D+M D")
+						self.d_reg = self.memory[self.a_reg] << 1
+				else:
+					loop = self.make_jump_label(name="loop")
+					end = self.make_jump_label(False, "end")
 
-				self.load_immediate(f"r{reg2}")
-				self.instructions.append("COMP M D")
-				self.d_reg = self.memory.get(reg2, 0)
+					self.load_immediate(f"r{reg2}")
+					self.instructions.append("COMP M D")
+					self.d_reg = self.memory.get(reg2, 0)
 
-				self.load_immediate(f".end{end}")
-				self.instructions.append("COMP D JLE")
+					self.load_immediate(f".end{end}")
+					self.instructions.append("COMP D JLE")
 
-				self.load_immediate(f"r{reg2}")
-				self.instructions.append("COMP D-- M")
+					self.load_immediate(f"r{reg2}")
+					self.instructions.append("COMP D-- M")
 
-				self.load_immediate(f"r{reg1}")
-				self.instructions.append("COMP M D")
-				self.instructions.append("COMP D+M M")
-				self.d_reg = self.memory.get(reg1, 0)
-				self.memory[reg1] <<= 1
+					self.load_immediate(f"r{reg1}")
+					self.instructions.append("COMP M D")
+					self.instructions.append("COMP D+M M")
+					self.d_reg = self.memory.get(reg1, 0)
+					self.memory[reg1] <<= 1
 
-				self.load_immediate(f".loop{loop}")
-				self.instructions.append("COMP 0 JMP")
+					self.load_immediate(f".loop{loop}")
+					self.instructions.append("COMP 0 JMP")
 
-				self.instructions.append(f".end{end}")
-				self.load_immediate(f"r{reg1}")
-				self.instructions.append("COMP M D")
+					self.instructions.append(f".end{end}")
+					self.load_immediate(f"r{reg1}")
+					self.instructions.append("COMP M D")
 
 			case "<": self.comparison(reg1, reg2, "JLT")
 			
@@ -425,14 +447,14 @@ class Compiler:
 
 	def visitUnaryOperation(self, node: UnaryOperation):
 		if str(node.op.token_type) == "AND": # Address operator (&identifier)
-			if not {**self.variables, **self.arrays}.get(node.value.symbol, None):
+			if (not self.symbols.get(node.value.symbol, None)) or (self.symbols[node.value.symbol][0] == "const"):
 				error = Exception(f"Undefined symbol: {node.value.symbol}")
 				error.start_pos = node.start_pos
 				error.end_pos = node.end_pos
 				error.code = 4
 				raise error
 			
-			self.load_immediate({**self.variables, **self.arrays}.get(node.value.symbol))
+			self.load_immediate(self.symbols.get(node.value.symbol))
 			self.instructions.append("COMP A D")
 			return
 
@@ -566,7 +588,6 @@ class Compiler:
 	def visitIntLiteral(self, node: IntLiteral):
 		if node.value in self.known_values: # Known values in the ISA
 			self.instructions.append(f"COMP {node.value} D")
-		
 		else:
 			self.load_immediate(node.value)
 			self.instructions.append("COMP A D")
@@ -578,17 +599,24 @@ class Compiler:
 		base_pointer = 16 + self.vars
 		for element in node.elements:
 			self.generate_code(element)
-			self.load_immediate(16 + self.vars, f"array_{len(self.arrays)}[{self.vars - base_pointer + 16}]")
+			self.load_immediate(16 + self.vars, f"array[{self.vars - base_pointer + 16}]")
 			self.instructions.append("COMP D M")
 			self.memory[16 + self.vars] = self.d_reg
 			self.vars += 1
 		return base_pointer
 
 	def visitIdentifier(self, node: Identifier):
+		if node.symbol not in self.symbols.keys():
+			error = Exception(f"Undefined symbol: {node.symbol}")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			error.code = 8
+			raise error
+
 		# Load a symbol's value into the D register.
-		if node.symbol in self.constants.keys():
+		if self.symbols[node.symbol][0] == "const":
 			# Value is already known, so just load it into D register
-			value = self.constants[node.symbol]
+			value = self.symbols[node.symbol][1]
 			if value in self.known_values: # Known values in the ISA
 				self.instructions.append(f"COMP {value} D")
 			else:
@@ -597,21 +625,9 @@ class Compiler:
 			
 			self.d_reg = value
 			return value
-
-		elif node.symbol in self.variables.keys(): # It is a variable, in this case it's value is not known
-			addr = self.variables[node.symbol]
-
-			if self.instructions[-1] == "COMP D M" and self.a_reg == addr:
-				pass
-
-			else:
-				self.load_immediate(addr, node.symbol)
-				self.instructions += ["COMP M D"]
 		
-			self.d_reg = self.memory[addr]
-
-		elif node.symbol in self.arrays.keys(): # It is an array, in this case it will return the base pointer
-			addr = self.arrays[node.symbol]
+		elif self.symbols[node.symbol][0] == "array": # It is an array, in this case it will return the base pointer
+			addr = self.symbols[node.symbol][1]
 
 			if self.instructions[-1] == "COMP D M" and self.a_reg == addr:
 				pass
@@ -621,35 +637,49 @@ class Compiler:
 				self.instructions += ["COMP M D"]
 
 			self.d_reg = self.memory[addr]
+
+		else: # It is a variable, in this case it's value is not known
+			addr = self.symbols[node.symbol][1]
+
+			if self.instructions[-1] == "COMP D M" and self.a_reg == addr:
+				pass
+
+			else:
+				self.load_immediate(addr, node.symbol)
+				self.instructions += ["COMP M D"]
 		
-		else:
-			error = Exception(f"Undefined symbol: {node.symbol}")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 8
-			raise error
+			self.d_reg = self.memory.get(addr, 0)
 
 	def visitConstDefinition(self, node: ConstDefinition):
 		# Check if symbol is already defined
-		if node.symbol.symbol in {**self.constants, **self.variables}:
+		if node.symbol.symbol in self.symbols.keys():
 			error = Exception(f"Symbol {node.symbol.symbol} is already defined.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
 			error.code = 9
 			raise error
 		
-		expr = self.generate_code(node.value)
-		self.constants[node.symbol.symbol] = expr
+		start_pos = len(self.instructions)
+		temp_a_reg = self.a_reg
+		temp_d_reg = self.d_reg
+
+		self.generate_code(node.value)
+		self.symbols[node.symbol.symbol] = ("const", self.d_reg)
+
+		self.a_reg = temp_a_reg
+		self.d_reg = temp_d_reg
+		self.instructions = self.instructions[:start_pos]
 
 	def visitVarDeclaration(self, node: VarDeclaration):
 		# Check if symbol is already defined
-		if node.identifier in {**self.constants, **self.variables, **self.arrays}:
+		if node.identifier in self.symbols.keys():
 			error = Exception(f"Symbol {node.identifier} is already defined.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
 			error.code = 10
 			raise error
 
+		start_pos = len(self.instructions)
 		base_pointer: int|None = self.generate_code(node.value)
 		memory_location: int = 16 + self.vars
 
@@ -661,39 +691,58 @@ class Compiler:
 				error.code = 11
 				raise error
 
-			self.arrays[node.identifier] = memory_location
+			self.symbols[node.identifier] = ("array", memory_location)
 			self.memory[memory_location] = base_pointer
 			base_pointer: int
 			self.load_immediate(base_pointer, f"array_{node.identifier}")
 			self.instructions.append("COMP A D") # Load base pointer
 			self.d_reg = self.a_reg
 		else:
-			self.variables[node.identifier] = memory_location # Memory addresses start at location 16
+			match node.data_type:
+				case "int":
+					self.symbols[node.identifier] = ("int", memory_location)
+				case "bool":
+					if self.d_reg not in (-1, 0):
+						error = Exception("Expected a boolean, got an integer instead.")
+						error.start_pos = node.value.start_pos
+						error.end_pos = node.value.end_pos
+						error.code = 16
+						raise error
+					self.symbols[node.identifier] = ("bool", memory_location)
 		
+		if self.d_reg in self.known_values:
+			self.instructions = self.instructions[:start_pos]
 		self.load_immediate(memory_location, f"{node.identifier}")
-		self.instructions.append("COMP D M") # Store result in D register to memory
+		self.instructions.append("COMP D M" if self.d_reg not in self.known_values else f"COMP {self.d_reg} M") # Store result in D register to memory
 		self.memory[memory_location] = self.d_reg
 		
 		self.vars += 1
 
 	def visitAssignment(self, node: Assignment):
+		if node.identifier.symbol not in self.symbols.keys():
+			error = Exception(f"Undefined variable: {node.identifier.symbol}.")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			error.code = 13
+			raise error
+
 		self.generate_code(node.expr)
 
-		if node.identifier.symbol in self.constants:
+		if self.symbols[node.identifier.symbol][0] == "const":
 			error = Exception(f"Cannot assign to constant '{node.identifier.symbol}'.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
 			error.code = 12
 			raise error
 
-		if node.identifier.symbol not in self.variables:
+		if self.symbols[node.identifier.symbol][0] == "array":
 			error = Exception(f"Undefined variable: {node.identifier.symbol}.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
 			error.code = 13
 			raise error
 		
-		addr = self.variables[node.identifier.symbol]
+		addr = self.symbols[node.identifier.symbol][1]
 		
 		self.load_immediate(addr, f"{node.identifier.symbol}")
 		self.instructions += [
@@ -714,7 +763,8 @@ class Compiler:
 			return
 
 		# Check if identifier is a variable
-		if node.identifier not in self.variables:
+		if node.identifier not in self.symbols.keys() or\
+		self.symbols.get(node.identifier)[0] in ("const", "array"):
 			error = Exception(f"Variable {node.identifier} is not defined.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
@@ -722,7 +772,7 @@ class Compiler:
 			raise error
 
 		# Set iterator to start value
-		location = self.variables[node.identifier]
+		location = self.symbols[node.identifier][1]
 		self.generate_code(node.start)
 		self.load_immediate(location, "Start value")
 		self.instructions += [f"COMP D M"]
@@ -732,16 +782,16 @@ class Compiler:
 
 		self.generate_code(node.body)
 
-		self.instructions.append(f"// Step value (.for{jump})")
 		self.generate_code(node.step)
+		self.instructions[-1] += f" // Step value (.for{jump})"
 		step_value: int = self.d_reg
 		
 		self.load_immediate(location, f"{node.identifier}")
 		self.instructions.append("COMP D+M DM")
 		self.d_reg += self.memory[location]
 
-		self.instructions.append(f"// End value (.for{jump})")
 		self.generate_code(node.end)
+		self.instructions[-1] += f" // End value (.for{jump})"
 		self.load_immediate(location, f"{node.identifier}")
 		self.instructions.append("COMP D-M D")
 		self.d_reg -= self.memory[location]
@@ -768,18 +818,18 @@ class Compiler:
 	
 	def visitPlotExpr(self, node: PlotExpr):
 		self.generate_code(node.x)
-		self.load_immediate(self.x_addr, "X Port")
+		self.load_immediate(self.X_ADDR, "X Port")
 		self.instructions.append("COMP D M")
-		self.memory[self.x_addr] = self.d_reg
+		self.memory[self.X_ADDR] = self.d_reg
 		self.generate_code(node.y)
-		self.load_immediate(self.y_addr, "Y Port")
+		self.load_immediate(self.Y_ADDR, "Y Port")
 		self.instructions.append("COMP D M")
-		self.memory[self.y_addr] = self.d_reg
+		self.memory[self.Y_ADDR] = self.d_reg
 		self.instructions.append(f"PLOT {node.value}")
 
 	def visitArrayAccess(self, node: ArrayAccess):
 		res = CompileResult()
-		if isinstance(node.array, Identifier) and node.array.symbol not in self.arrays:
+		if isinstance(node.array, Identifier) and (node.array.symbol not in self.symbols or self.symbols[node.array.symbol][0] != "array"):
 			error = Exception(f"Undefined array: {node.array.symbol}")
 			error.start_pos = node.array.start_pos
 			error.end_pos = node.array.end_pos
@@ -789,13 +839,29 @@ class Compiler:
 		if isinstance(node.array, ArrayLiteral):
 			base_pointer: int = self.generate_code(node.array)
 			self.generate_code(node.index)
+
+			if self.d_reg >= len(node.array.elements):
+				error = Exception(f"Out of bounds: index must not exceed {len(node.array.elements) - 1}, found index {self.d_reg} instead.")
+				error.start_pos = node.index.start_pos
+				error.end_pos = node.index.end_pos
+				error.code = 17
+				raise error
+			
+			if self.d_reg < 0:
+				error = Exception(f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
+				error.start_pos = node.index.start_pos
+				error.end_pos = node.index.end_pos
+				error.code = 17
+				raise error
+
 			self.load_immediate(base_pointer)
 			self.instructions.append("COMP D+A A")
 			self.a_reg += self.d_reg
 			self.instructions.append("COMP M D")
 			self.d_reg = self.memory[self.a_reg]
 		else: # Identifier, trickier to manage but still doable
-			base_pointer = self.memory[self.arrays[node.array.symbol]]
+			address = self.symbols[node.array.symbol][1]
+			base_pointer = self.memory[address]
 
 			res.register(self.compile(Statements(
 				node.index.start_pos,
@@ -809,6 +875,20 @@ class Compiler:
 				error.code = res.error.code
 				raise error
 			
+			if self.d_reg >= address - base_pointer:
+				error = Exception(f"Out of bounds: index must not exceed {address - base_pointer - 1}, found index {self.d_reg} instead.")
+				error.start_pos = node.index.start_pos
+				error.end_pos = node.index.end_pos
+				error.code = 17
+				raise error
+			
+			if self.d_reg < 0:
+				error = Exception(f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
+				error.start_pos = node.index.start_pos
+				error.end_pos = node.index.end_pos
+				error.code = 17
+				raise error
+			
 			self.instructions = self.instructions[:-1]
 			self.load_immediate(base_pointer, "Access base pointer")
 			self.instructions.append("COMP D+A A")
@@ -817,7 +897,7 @@ class Compiler:
 			self.d_reg = self.memory.get(self.a_reg, self.d_reg)
 
 	def visitArraySet(self, node: ArraySet):
-		if isinstance(node.array, Identifier) and node.array.symbol not in self.arrays:
+		if isinstance(node.array, Identifier) and (node.array.symbol not in self.symbols or self.symbols[node.array.symbol][0] != "array"):
 			error = Exception(f"Undefined array: {node.array.symbol}")
 			error.start_pos = node.array.start_pos
 			error.end_pos = node.array.end_pos
@@ -877,3 +957,65 @@ class Compiler:
 			self.generate_code(node.else_case)
 		
 		self.instructions.append(f".endif{end}")
+
+	def visitSubroutineDef(self, node: SubroutineDef):
+		# Check if symbol is already defined
+		if node.name in self.symbols.keys():
+			error = Exception(f"Symbol {node.name} is already defined.")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			error.code = 10
+			raise error
+
+		# Allocate memory for parameters
+		for param in node.parameters:
+			memory_location: int = 16 + self.vars
+			self.symbols[param] = ("int", memory_location)
+			self.memory[memory_location] = 0
+			self.vars += 1
+		
+		self.generate_code(IntLiteral(len(node.parameters), node.start_pos, node.end_pos))
+		memory_location: int = 16 + self.vars
+		self.symbols[node.name] = ("subroutine", memory_location)
+		self.memory[memory_location] = len(node.parameters)
+		self.subroutine_defs.append(node)
+		self.vars += 1
+
+		self.load_immediate(memory_location, f"{node.name}")
+		self.instructions.append("COMP D M" if self.d_reg not in self.known_values else f"COMP {self.d_reg} M")
+	
+	def visitCallExpression(self, node: CallExpression):
+		# Check if symbol is already defined
+		if node.sub_name not in self.symbols.keys():
+			error = Exception(f"Symbol {node.sub_name} is undefined.")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			error.code = 10
+			raise error
+		
+		# Check if symbol is a subroutine
+		if self.symbols[node.sub_name][0] != "subroutine":
+			error = Exception(f"Symbol {node.sub_name} is not a subroutine.")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			error.code = 18
+			raise error
+
+		# Check number of arguments
+		memory_location: int = self.symbols[node.sub_name][1]
+		params: int = self.memory[memory_location]
+		if params != len(node.arguments):
+			error = Exception(f"Expected {params} arguments, got {len(node.arguments)} arguments instead.")
+			error.start_pos = node.start_pos
+			error.end_pos = node.end_pos
+			error.code = 19
+			raise error
+		
+		# Populate arguments
+		for i, arg in enumerate(node.arguments):
+			self.generate_code(arg)
+			self.load_immediate(memory_location - params + i, f"arg_{i}")
+			self.instructions.append("COMP D M")
+			self.memory[memory_location - params - i] = self.d_reg
+		
+		self.instructions.append(f"CALL .sub_{node.sub_name}")
