@@ -7,57 +7,23 @@ from xenon_vm import BinSyntaxHighlighter
 # Lookup table for codes
 # Format: A? NotD ZeroD And|Add NotOutPut ZeroA|M NotA|M DC|RShift
 ALU_CODES = {
-	"0": 36,
-	"1": 126,
-	"-1": 44,
-	"-2": 118,
-	"D": 6,
-	"A": 224,
-	"M": 96,
-	"!D": 14,
-	"!A": 232,
-	"!M": 104,
-	"-D": 30,
-	"-A": 248,
-	"-M": 120,
-	"D++": 94,
-	"A++": 250,
-	"M++": 122,
-	"D--": 22,
-	"A--": 240,
-	"M--": 112,
-	"D+A": 144,
-	"D+M": 16,
-	"D-A": 216,
-	"D-M": 88,
-	"A-D": 154,
-	"M-D": 26,
-	"D&A": 128,
-	"D&M": 0,
-	"!(D&A)": 136,
-	"!(D&M)": 8,
-	"D|A": 202,
-	"D|M": 74,
-	"!(D|A)": 194,
-	"!(D|M)": 66,
-	"D^A": 145,
-	"D^M": 17,
-	"!(D^A)": 153,
-	"!(D^M)": 25,
-	">>D": 7,
-	">>A": 225,
-	">>M": 97,
+	"0": 36, "1": 126, "-1": 44, "-2": 118,
+	"D": 6, "A": 224, "M": 96,
+	"!D": 14, "!A": 232, "!M": 104, "-D": 30, "-A": 248, "-M": 120,
+	"D++": 94, "A++": 250, "M++": 122, "D--": 22, "A--": 240, "M--": 112,
+	"D+A": 144, "D+M": 16, "D-A": 216, "D-M": 88, "A-D": 154, "M-D": 26,
+	"D&A": 128, "D&M": 0, "D|A": 202, "D|M": 74, "D^A": 145, "D^M": 17,
+	"!(D&A)": 136, "!(D&M)": 8, "!(D|A)": 194, "!(D|M)": 66, "!(D^A)": 153, "!(D^M)": 25,
+	">>D": 7, ">>A": 225, ">>M": 97,
 }
 
-JUMPS = {
-	"JLT": 1, "JEQ": 2, "JLE": 3, "JGT": 4, "JNE": 5, "JGE": 6, "JMP": 7
-}
+JUMPS = { "JLT": 1, "JEQ": 2, "JLE": 3, "JGT": 4, "JNE": 5, "JGE": 6, "JMP": 7 }
 
-def convert_to_bin(value: int):
-	if value >= 0: return bin(value)[2:].zfill(14)
+def convert_to_bin(value: int, width: int = 14):
+	if value >= 0: return bin(value)[2:].zfill(width)
 	
 	difference: int = 16384 + value
-	return f"{bin(difference)[2:].zfill(14)}"
+	return f"{bin(difference)[2:].zfill(width)}"
 
 def assemble(ftxt: str):
 	try:
@@ -112,7 +78,6 @@ def assemble(ftxt: str):
 						value = int(immediate)
 					except ValueError:
 						return ValueError(f"Label '{immediate}' unbound.")
-					
 
 					binary_result.append(f"{convert_to_bin(value)}10")
 				
@@ -145,12 +110,29 @@ def assemble(ftxt: str):
 					op_code: str = ""
 					match ln[1]:
 						case "move": op_code = "00"
-						case "append": op_code = "01"
 						case "update": op_code = "10"
-						case "stamp": op_code = "11"
-						case _: raise ValueError(f"Line {line_num + 1}: Expected 'move', 'append', 'flip', or 'stamp', got '{ln[1]}' instead.")
+						case _: raise ValueError(f"Line {line_num + 1}: Expected 'move' or 'update', got '{ln[1]}' instead.")
 					
 					binary_result.append(f"{op_code}{'0' * 11}001")
+
+				case "CALL": # Call instruction
+					if len(ln) != 2: raise SyntaxError(f"Line {line_num + 1}: Expected 1 argument for instruction CALL, found {len(ln) - 1} arguments instead.")
+
+					address = ln[1]
+					if address in labels: address = labels[address]
+
+					try:
+						value = int(address)
+					except ValueError:
+						return ValueError(f"Label '{address}' unbound.")
+
+					print(convert_to_bin(value, 12))
+					binary_result.append(f"{convert_to_bin(value, 12)}1000")
+				
+				case "RETN": # Return instruction
+					if len(ln) != 1: raise SyntaxError(f"Line {line_num + 1}: Expected 0 arguments for instruction RETN, found {len(ln) - 1} arguments instead.")
+
+					binary_result.append("0" * 12 + "1100")
 
 				case _:
 					if not (line.startswith(".") and len(ln) == 1):
@@ -178,7 +160,7 @@ class ASMSyntaxHighlighter(QSyntaxHighlighter):
 		self.create_format("parameter", QColor(101, 171, 235))
 
 		self.add_rule(r"\b(D|A|M|DA|AM|DM|DAM)\b", "destination")
-		self.add_rule(r"\b(NOOP|HALT|LDIA|COMP|PLOT|BUFR)\b", "instruction")
+		self.add_rule(r"\b(NOOP|HALT|LDIA|COMP|PLOT|BUFR|CALL|RETN)\b", "instruction")
 		self.add_rule(r"\b(JLT|JEQ|JLE|JGT|JNE|JGE|JMP)\b", "jump")
 		self.add_rule(r"\b(r\d+)\b", "register")
 		self.add_rule(r"\b\d+(\.\d+)?\b", "number")
