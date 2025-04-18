@@ -145,6 +145,21 @@ class IfStatement:
 		self.start_pos = start_pos
 		self.end_pos = end_pos
 
+class SubroutineDef:
+	def __init__(self, start_pos: Position, end_pos: Position, name: str, parameters: list[str], body: Statements):
+		self.start_pos = start_pos
+		self.end_pos = end_pos
+		self.name = name
+		self.parameters = parameters
+		self.body = body
+
+class CallExpression:
+	def __init__(self, start_pos: Position, end_pos: Position, sub_name: str, arguments: list):
+		self.start_pos = start_pos
+		self.end_pos = end_pos
+		self.sub_name = sub_name
+		self.arguments = arguments
+
 ## PARSE RESULT
 class ParseResult:
 	def __init__(self):
@@ -224,6 +239,7 @@ class Parser:
 				case "while": return self.while_loop()
 				case "plot": return self.plot_expr()
 				case "if": return self.if_statement()
+				case "sub": return self.subroutine_def()
 
 		return self.expression()
 
@@ -522,6 +538,70 @@ class Parser:
 		
 		return res.success(IfStatement(cases, else_case, start_pos, end_pos))
 
+	def subroutine_def(self):
+		res = ParseResult()
+		start_pos: Position = self.current_token.start_pos
+		self.advance()
+		
+		if self.current_token.token_type != TT.IDENTIFIER:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected a subroutine name."
+			))
+		name: str = self.current_token.value
+		self.advance()
+
+		if self.current_token.token_type != TT.LPR:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected '(' after subroutine name."
+			))
+		self.advance()
+
+		parameters: list[str] = []
+
+		if self.current_token.token_type == TT.IDENTIFIER:
+			parameters.append(self.current_token.value)
+			self.advance()
+
+			while self.current_token.token_type == TT.COMMA:
+				self.advance()
+				if self.current_token.token_type != TT.IDENTIFIER:
+					return res.fail(InvalidSyntax(
+						self.current_token.start_pos, self.current_token.end_pos,
+						"Expected a parameter name."
+					))
+				parameters.append(self.current_token.value)
+				self.advance()
+		
+		if self.current_token.token_type != TT.RPR:
+			supplement: str = "',' or "
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				f"Expected {supplement if parameters else ''}')'."
+			))
+		self.advance()
+
+		if self.current_token.token_type != TT.LBR:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected '{' after subroutine definition."
+			))
+		self.advance()
+
+		body = res.register(self.statements((TT.EOF, TT.RBR)))
+		if res.error: return res
+
+		if self.current_token.token_type != TT.RBR:
+			return res.fail(InvalidSyntax(
+				self.current_token.start_pos, self.current_token.end_pos,
+				"Expected '}' after subroutine body."
+			))
+		end_pos: Position = self.current_token.end_pos
+		self.advance()
+
+		return res.success(SubroutineDef(start_pos, end_pos, name, parameters, body))
+
 	def expression(self):
 		return self.assignment()
 
@@ -573,7 +653,7 @@ class Parser:
 		return self.binary_op(self.multiplicative, (TT.ADD, TT.SUB))
 
 	def multiplicative(self):
-		return self.binary_op(self.unary, (TT.MUL,))
+		return self.binary_op(self.unary, (TT.MUL, TT.DIV))
 
 	def unary(self):
 		res = ParseResult()
@@ -592,7 +672,7 @@ class Parser:
 
 			return res.success(UnaryOperation(tok, value))
 		
-		value = res.register(self.call_access())
+		value = res.register(self.access())
 		if res.error: return res
 
 		if self.current_token.token_type in (TT.INC, TT.DEC):
@@ -602,10 +682,10 @@ class Parser:
 		
 		return res.success(value)
 
-	def call_access(self):
+	def access(self):
 		res = ParseResult()
 
-		literal = res.register(self.literal())
+		literal = res.register(self.call())
 		if res.error: return res
 
 		if self.current_token.token_type == TT.LSQ:
@@ -635,6 +715,44 @@ class Parser:
 				return res.success(ArraySet(literal, index, expr))
 
 			return res.success(ArrayAccess(literal, index, end_pos))
+
+		return res.success(literal)
+	
+	def call(self):
+		res = ParseResult()
+
+		literal = res.register(self.literal())
+		if res.error: return res
+
+		if self.current_token.token_type == TT.LPR:
+			self.advance()
+
+			arguments: list = []
+			if self.current_token.token_type != TT.RPR:
+				arg = res.register(self.expression())
+				if res.error: return res
+
+				arguments.append(arg)
+
+				while self.current_token.token_type == TT.COMMA:
+					self.advance()
+					arg = res.register(self.expression())
+					if res.error: return res
+
+					arguments.append(arg)
+				
+			if self.current_token.token_type != TT.RPR:
+				supplement: str = "',' or "
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					f"Expected {supplement if arguments else ''} ')'."
+				))
+			end_pos: Position = self.current_token.end_pos
+			self.advance()
+
+			return res.success(CallExpression(
+				literal.start_pos, end_pos, literal.symbol, arguments
+			))
 
 		return res.success(literal)
 
