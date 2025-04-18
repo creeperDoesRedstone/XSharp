@@ -66,11 +66,11 @@ The memory address of a variable can be accessed using the `&` operator:
 ```
 
 ### `Loops`
-For-loops have `start`, `end`, and `step` values. Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
+For loops have `start`, `end`, and `step` values. Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
 ```
 for identifier start: expr end: expr step: expr { <body> }
 ```
-While-loops will execute until the value of `condition` is 0:
+While loops will execute until the value of `condition` is 0:
 ```
 while condition { <body> }
 ```
@@ -101,6 +101,15 @@ if condition1 {
 }
 ```
 
+### `Subroutines`
+A subroutine is defined as follows:
+```
+sub name(param1, param2, ...) {
+    body
+}
+```
+Once defined, a subroutine can be called using `sub_name(arg1, arg2, ...)`.
+
 ### `Other Things`
 The language has a few other functions:
 ```
@@ -108,7 +117,7 @@ include operation // includes the operations library
 17 * 2 // multiplication
 5 % 2 // modulo
 ```
-You can also write to the screen using the `plot` keyword:
+You can also write to the screen using the `plot` keyword (deprecated):
 ```
 plot x y 0/1
 ```
