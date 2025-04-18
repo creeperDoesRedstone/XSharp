@@ -1,7 +1,9 @@
-from PyQt6.QtWidgets import QMainWindow, QApplication, QLabel, QPushButton, QFileDialog
+from PyQt6.QtWidgets import QMainWindow, QApplication, QLabel, QPushButton, QFileDialog, QSlider
 from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
-from PyQt6.QtCore import QRegularExpression
+from PyQt6.QtCore import QRegularExpression, QTimer
 from PyQt6 import uic
+
+from functools import partial
 
 from xsharp_compiler import Compiler
 from screen_writer import write_screen
@@ -73,25 +75,25 @@ class VirtualMachine(QMainWindow):
 		self.file_text.setAcceptRichText(False)
 		self.highlighter = BinSyntaxHighlighter(self.file_text.document())
 
+		self.clock_speed: QSlider
+		self.clock_speed_label: QLabel
+		self.clock_speed.installEventFilter(self)
+
+		self.run_timer = QTimer(self)
+		self.run_timer.timeout.connect(lambda: self.run_step(
+			self.file_text.toPlainText().strip().splitlines(), None
+		))
+		self.steps = 0
+
 	def init_memory(self):
-		self.a_reg = QLabel(self)
-		self.a_reg.setGeometry(40, 100, 100, 40)
-		self.a_reg.setStyleSheet("color: rgb(255, 170, 0)")
-
-		self.d_reg = QLabel(self)
-		self.d_reg.setGeometry(40, 140, 100, 40)
-		self.d_reg.setStyleSheet("color: rgb(100, 200, 255)")
-		self.memory = QLabel(self)
-		self.memory.setGeometry(40, 180, 100, 40)
-
-		self.memory_value = [0] * (Compiler().input_addr + 1)
+		self.memory_value = [0] * (Compiler.INPUT_ADDR + 1)
+		self.call_stack: list[int] = []
 		
 		self.a_reg_value = 0
-		self.set_value(self.a_reg, 0, "A")
-
 		self.d_reg_value = 0
-		self.set_value(self.d_reg, 0, "D")
 
+		self.set_value(self.a_reg, 0, "A")
+		self.set_value(self.d_reg, 0, "D")
 		self.set_value(self.memory, 0, "M")
 
 		self.current_inst = QLabel(self)
@@ -109,7 +111,6 @@ class VirtualMachine(QMainWindow):
 
 		for x in range(self.screen_length):
 			for y in range(self.screen_width):
-				# print(x * PIXEL_SIZE + 40, y * PIXEL_SIZE + 300)
 				setattr(self, f"px[{x}][{y}]", QLabel(text="", parent=self))
 				pixel: QLabel = getattr(self, f"px[{x}][{y}]")
 				pixel.setObjectName(f"px[{x}][{y}]")
@@ -128,14 +129,17 @@ class VirtualMachine(QMainWindow):
 
 	def set_value(self, register: QLabel, value: int, kind: str):
 		register.setText(f"{kind}: {value}")
+		
 		if kind == "A":
 			self.a_reg_value = value
 			if self.a_reg_value >= 0 and self.a_reg_value < len(self.memory_value):
 				self.memory.setText(f"M: {self.memory_value[self.a_reg_value]}")
 			else:
 				self.memory.setText(f"M: Unmapped")
+		
 		elif kind == "D":
 			self.d_reg_value = value
+		
 		elif kind == "M" and self.a_reg_value >= 0 and self.a_reg_value < len(self.memory_value):
 			self.memory_value[self.a_reg_value] = value
 
@@ -158,6 +162,25 @@ class VirtualMachine(QMainWindow):
 		elif current_inst == HALT:
 			return True
 		
+		elif op_code == "00": # System instructions
+			instruction: str = current_inst[12:14]
+			match instruction:
+				case "00": # NOOP
+					self.program_counter += 1
+				case "01": # HALT
+					return True
+				case "10": # CALL
+					self.call_stack.append(self.program_counter + 1)
+					if len(self.call_stack) >= 16: raise_error("Stack overflow!")
+
+					address = int("0b" + current_inst[0:12], 2)
+					self.program_counter = address
+				case "11": # RETN
+					if not self.call_stack: raise_error("Stack underflow!")
+					address = self.call_stack.pop()
+
+					self.program_counter = address
+
 		elif op_code == "10": # LDIA
 			value = int(current_inst[:-2], 2)
 			if current_inst[0] == "1":
@@ -253,14 +276,23 @@ class VirtualMachine(QMainWindow):
 
 		return False
 
-	def run(self, code: str, max_steps: int|None = None, clock_speed: int = 0):
+	def run_step(self, PROM: list[str], max_steps: int|None = None):
+		halted: bool = self.step(PROM)
+		self.steps += 1
+
+		if halted:
+			self.run_timer.stop()
+		elif max_steps is not None and self.steps >= max_steps:
+			self.run_timer.stop()
+
+	def run(self, code: str, max_steps: int|None = None):
 		NOOP = "0" * 16
 
 		PROM = code.strip().splitlines()
 		PROM.extend([NOOP] * (MAX_INSTRUCTIONS - len(PROM)))
 
 		self.program_counter = 0
-		steps: int = 0
+		self.steps = 0
 
 		self.set_value(self.a_reg, 0, "A")
 		self.set_value(self.d_reg, 0, "D")
@@ -275,12 +307,22 @@ class VirtualMachine(QMainWindow):
 		self.buffer.clear()
 		if not PROM: return False
 
-		while not self.step(PROM): # step() function returns True when encountering a HALT instruction
-			steps += 1
-			if max_steps != None and steps > max_steps:
-				return True # Timeout has occurred
+		if self.clock_speed.value() > 0:
+			interval_ms = int(1000 / self.clock_speed.value())
+			self.run_timer.start(interval_ms)
+		else:
+			while not self.step(PROM): # step() function returns True when encountering a HALT instruction
+				self.steps += 1
+				if max_steps != None and self.steps > max_steps:
+					return True # Timeout has occurred
 
 		return False
+
+	def eventFilter(self, a0, a1):
+		if a0 == self.clock_speed:
+			value = self.clock_speed.value()
+			self.clock_speed_label.setText(f"Clock speed: {str(value)+'Hz' if value > 0 else 'Instant'}")
+		return super().eventFilter(a0, a1)
 
 if __name__ == "__main__":
 	app = QApplication([])
