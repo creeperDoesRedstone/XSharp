@@ -7,10 +7,11 @@ KEYWORDS = [
 	"for", "start", "end", "step",
 	"while", "plot",
 	"if", "elseif", "else",
-	"include"
+	"include",
+	"sub"
 ]
 DATA_TYPES = [
-	"int"
+	"int", "bool"
 ]
 
 # Token types
@@ -20,10 +21,10 @@ class TT(Enum):
 	AND, OR, NOT, XOR,\
 	LPR, RPR, LBR, RBR, LSQ, RSQ,\
 	COL, ASSIGN, COMMA,\
-	MUL, RSHIFT, LSHIFT,\
+	MUL, DIV, RSHIFT, LSHIFT,\
 	ABS, SIGN,\
 	NUM, IDENTIFIER, KEYWORD, NEWLINE, EOF\
-	= range(33)
+	= range(34)
 
 	def __str__(self):
 		return super().__str__().removeprefix("TT.")
@@ -265,6 +266,11 @@ class Lexer:
 				start_pos = self.pos.copy()
 				self.advance()
 				tokens.append(Token(start_pos, self.pos, TT.MUL))
+			
+			elif self.current_char == "/" and "operations" in self.libraries:
+				start_pos = self.pos.copy()
+				self.advance()
+				tokens.append(Token(start_pos, self.pos, TT.DIV))
 
 			elif self.current_char == "/":
 				# Try to make a comment
