@@ -104,7 +104,7 @@ if condition1 {
 ### `Subroutines`
 A subroutine is defined as follows:
 ```
-sub name(param1, param2, ...) {
+sub sub_name(param1, param2, ...) {
     body
 }
 ```
@@ -113,7 +113,7 @@ Once defined, a subroutine can be called using `sub_name(arg1, arg2, ...)`.
 ### `Other Things`
 The language has a few other functions:
 ```
-include operation // includes the operations library
+include operation // Includes the operations library
 17 * 2 // multiplication
 5 % 2 // modulo
 ```
