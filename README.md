@@ -123,6 +123,12 @@ plot x y 0/1
 ```
 
 ## XAssembly
+### `Labels`
+Labels are placeholders for addresses. They are defined in a separate line before an instruction as follows:
+```
+0 | .label_name
+1 | <remaining instructions>
+```
 ### `NOOP`
 This instruction does nothing.
 ### `HALT`
@@ -133,8 +139,8 @@ This instruction loads a 14-bit signed integer into the `Address` register.
 LDIA value
 ```
 ### `COMP`
-This instruction computes the given operation. Valid operations can be found in the `xasm_assember.py` file.
-It can store the result in the `Data` register, the `Address` register, and the RAM location pointed by the `Address` register if specified.
+This instruction computes the given operation. Valid operations can be found in the `xasm_assembler.py` file.
+If specified, it can store the result in the `Data` register, the `Address` register, and the RAM location pointed by the `Address` register.
 It can also perform a branch if specified and matches the result.
 ```
 COMP operation dest? jump?
@@ -149,9 +155,13 @@ PLOT value
 This instruction is responsible for porting the buffer data to the screen.
 You can specify one of four modes:
   - `move`: Moves the buffer's content onto the screen, erasing previous data on the screen and clearing the buffer.
-  - `append`: Appends the buffer's content onto the screen while charing the buffer.
   - `update`: Same as `move`, but doesn't clear the buffer.
-  - `stamp`: Same as `append`, but doesn't clear the buffer.
 ```
 BUFR mode
+```
+### `CALL`
+This instruction stores the next instruction address in the call stack and jumps to the specified address. The address can be a label or a predefined constant.
+It is mainly used for subroutines.
+```
+CALL addr
 ```
