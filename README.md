@@ -165,3 +165,5 @@ It is mainly used for subroutines.
 ```
 CALL addr
 ```
+### `RETN`
+This instruction pops the address in the call stack and jumps to that address.
