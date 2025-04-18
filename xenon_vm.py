@@ -237,8 +237,8 @@ class VirtualMachine(QMainWindow):
 			OFF_STYLESHEET: str = "background-color: rgb(117, 76, 19); border: 1px solid rgb(89, 52, 0);"
 			if current_inst[13] == "1": # Plot
 				val = int(current_inst[0])
-				x = self.memory_value[Compiler().x_addr]
-				y = self.memory_value[Compiler().y_addr]
+				x = self.memory_value[Compiler().X_ADDR]
+				y = self.memory_value[Compiler().Y_ADDR]
 
 				if x < 0: raise_error("X value cannot be negative!")
 				if x >= 48: raise_error("X value cannot be greater than 47!")
