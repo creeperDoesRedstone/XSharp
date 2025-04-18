@@ -266,11 +266,6 @@ class Lexer:
 				start_pos = self.pos.copy()
 				self.advance()
 				tokens.append(Token(start_pos, self.pos, TT.MUL))
-			
-			elif self.current_char == "/" and "operations" in self.libraries:
-				start_pos = self.pos.copy()
-				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.DIV))
 
 			elif self.current_char == "/":
 				# Try to make a comment
@@ -290,6 +285,11 @@ class Lexer:
 					self.advance()
 					self.advance()
 				
+				elif "operations" in self.libraries:
+					start_pos = self.pos.copy()
+					self.advance()
+					tokens.append(Token(start_pos, self.pos, TT.DIV))
+
 				else:
 					return None, UnexpectedCharacter(start_pos, self.pos, "'/'")
 			
