@@ -32,6 +32,7 @@ class Compiler:
 		self.jumps_dict: dict[int, int] = {}
 		self.memory: dict[int, int] = {}
 		self.subroutine_defs: list[SubroutineDef] = []
+		self.plotted: bool = False
 
 		self.symbols: dict[str, tuple[str, int]] = {
 			"true": ("const", -1),
@@ -61,6 +62,7 @@ class Compiler:
 			if len(self.instructions) > 0 and self.instructions[-1] == "COMP A D" and remove_that_one_line:
 				self.instructions = self.instructions[:-1]
 
+			if self.plotted: self.instructions.append("BUFR update")
 			self.instructions.append("HALT")  # Ensure program ends with HALT
 			self.peephole_optimize()
 
@@ -764,7 +766,7 @@ class Compiler:
 
 		# Check if identifier is a variable
 		if node.identifier not in self.symbols.keys() or\
-		self.symbols.get(node.identifier)[0] in ("const", "array"):
+		self.symbols.get(node.identifier)[0] in ("const", "array", "subroutine"):
 			error = Exception(f"Variable {node.identifier} is not defined.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
@@ -817,15 +819,20 @@ class Compiler:
 		self.a_reg = self.jumps_dict[end_loop]
 	
 	def visitPlotExpr(self, node: PlotExpr):
+		# X coordinate
 		self.generate_code(node.x)
 		self.load_immediate(self.X_ADDR, "X Port")
 		self.instructions.append("COMP D M")
 		self.memory[self.X_ADDR] = self.d_reg
+
+		# Y coordinate
 		self.generate_code(node.y)
 		self.load_immediate(self.Y_ADDR, "Y Port")
 		self.instructions.append("COMP D M")
 		self.memory[self.Y_ADDR] = self.d_reg
+
 		self.instructions.append(f"PLOT {node.value}")
+		self.plotted = True
 
 	def visitArrayAccess(self, node: ArrayAccess):
 		res = CompileResult()
@@ -890,6 +897,8 @@ class Compiler:
 				raise error
 			
 			self.instructions = self.instructions[:-1]
+			if self.instructions[-1] == "BUFR update":
+				self.instructions = self.instructions[:-1]
 			self.load_immediate(base_pointer, "Access base pointer")
 			self.instructions.append("COMP D+A A")
 			self.a_reg += self.d_reg
