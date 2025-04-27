@@ -1,8 +1,11 @@
 # Xenon's Languages
 ## Overview
 This repository contains 2 programming languages:
-  - A high-level programming language called XSharp (VScode extension can be downloaded here :https://marketplace.visualstudio.com/items/?itemName=stufflyer.xenon-xsharp-tools)
+
+  - A high-level programming language called XSharp
   - A low-level programming language called XAssembly
+
+VSCode extension for these languages: https://marketplace.visualstudio.com/items/?itemName=stufflyer.xenon-xsharp-tools
 
 ## XSharp
 ### `Operations`
