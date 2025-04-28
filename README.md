@@ -5,7 +5,7 @@ This repository contains 2 programming languages:
   - A high-level programming language called XSharp
   - A low-level programming language called XAssembly
 
-VSCode extension for these languages: https://marketplace.visualstudio.com/items/?itemName=stufflyer.xenon-xsharp-tools
+VSCode extension for these languages can be found at: https://marketplace.visualstudio.com/items/?itemName=stufflyer.xenon-xsharp-tools
 
 ## XSharp
 ### `Operations`
@@ -59,8 +59,10 @@ There are 2 built-in constants: `true` (-1) and `false` (0).
 Variables are defined using the `var` keyword:
 ```
 var identifier: data_type = expression
+var identifier: data_type // If you don't want to assign a value just yet
 ```
 This allocates a memory address for the variable.
+
 Unlike constants, variables can be changed using the `=` operator:
 ```
 identifier = expression
@@ -71,7 +73,9 @@ The memory address of a variable can be accessed using the `&` operator:
 ```
 
 ### `Loops`
-For loops have `start`, `end`, and `step` values. Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
+For loops have `start`, `end`, and `step` values.
+
+Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
 ```
 for identifier start: expr end: expr step: expr { <body> }
 ```
@@ -150,30 +154,35 @@ LDIA value
 ```
 ### `COMP`
 This instruction computes the given operation. Valid operations can be found in the `xasm_assembler.py` file.
+
 If specified, it can store the result in the `Data` register, the `Address` register, and the RAM location pointed by the `Address` register.
+
 It can also perform a branch if specified and matches the result.
 ```
 COMP operation dest? jump?
 ```
 ### `PLOT`
 This instruction plots a value (`0` or `1`) to the screen buffer.
+
 The x and y coordinates are stored in 2 ports (currently with addresses 2048 and 2049).
 ```
 PLOT value
 ```
 ### `BUFR`
 This instruction is responsible for porting the buffer data to the screen.
+
 You can specify one of four modes:
   - `move`: Moves the buffer's content onto the screen, erasing previous data on the screen and clearing the buffer.
   - `update`: Same as `move`, but doesn't clear the buffer.
 ```
 BUFR mode
 ```
-### `CALL`
+### `CALL` (not implemented in Minecraft yet)
 This instruction stores the next instruction address in the call stack and jumps to the specified address. The address can be a label or a predefined constant.
+
 It is mainly used for subroutines.
 ```
 CALL addr
 ```
-### `RETN`
+### `RETN` (not implemented in Minecraft yet)
 This instruction pops the address in the call stack and jumps to that address.
