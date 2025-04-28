@@ -36,7 +36,9 @@ class Compiler:
 
 		self.symbols: dict[str, tuple[str, int]] = {
 			"true": ("const", -1),
-			"false": ("const", 0)
+			"false": ("const", 0),
+			"update": ("nativesub", 0),
+			"flip": ("nativesub", 0)
 		}
 
 		self.vars: int = 0
@@ -67,8 +69,10 @@ class Compiler:
 			self.peephole_optimize()
 
 			for sub in self.subroutine_defs:
+				self.plotted = False
 				self.instructions.append(f".sub_{sub.name}")
 				self.generate_code(sub.body)
+				if self.plotted: self.instructions.append("BUFR move")
 				self.instructions.append("RETN")
 			
 			return result.success(self.instructions)
@@ -143,15 +147,12 @@ class Compiler:
 		end = self.make_jump_label(False, "false")
 
 		self.load_immediate(f"r{reg1}")
-		self.instructions.append("COMP M D")
-		self.load_immediate(f"r{reg2}")
-		self.instructions.append("COMP D-M D")
+		self.instructions.append("COMP M-D D")
 		self.load_immediate(f".true{true}")
 		self.instructions.append(f"COMP D {jump}")
 
-		self.instructions.append("COMP 0 D")
 		self.load_immediate(f".false{end}")
-		self.instructions.append("COMP 0 JMP")
+		self.instructions.append("COMP 0 D JMP")
 
 		self.instructions.append(f".true{true}")
 		self.instructions.append("COMP -1 D")
@@ -182,7 +183,7 @@ class Compiler:
 	def visitBinaryOperation(self, node: BinaryOperation):
 		op_map = {
 			"ADD": "D+M",
-			"SUB": "D-M",
+			"SUB": "M-D",
 			"AND": "D&M",
 			"OR" : "D|M",
 			"XOR": "D^M",
@@ -254,6 +255,7 @@ class Compiler:
 		reg1 = tuple(self.available_registers - self.allocated_registers)[0]
 		self.allocate_register(reg1)
 
+		right_pos: int = len(self.instructions)
 		right = self.generate_code(node.right)
 		# Allocate a register for right side
 		reg2 = tuple(self.available_registers - self.allocated_registers)[0]
@@ -355,9 +357,10 @@ class Compiler:
 			
 			case ">>":
 				if right in (0, 1):
-					self.instructions = self.instructions[:start_pos]
-					if right == 1: self.instructions.append("COMP >>M D")
-					self.d_reg = self.memory[self.a_reg] >> 1
+					self.instructions = self.instructions[:right_pos]
+					if right == 1:
+						self.instructions.append("COMP >>M D")
+						self.d_reg = self.memory[self.a_reg] >> 1
 				else:
 					loop = self.make_jump_label(name="loop")
 					end = self.make_jump_label(False, "end")
@@ -387,10 +390,8 @@ class Compiler:
 
 			case "<<":
 				if right in (0, 1):
-					self.instructions = self.instructions[:start_pos]
+					self.instructions = self.instructions[:right_pos]
 					if right == 1:
-						self.load_immediate(f"r{reg1}")
-						self.instructions.append("COMP M D")
 						self.instructions.append("COMP D+M D")
 						self.d_reg = self.memory[self.a_reg] << 1
 				else:
@@ -433,9 +434,8 @@ class Compiler:
 			case ">=": self.comparison(reg1, reg2, "JGE")
 
 			case _:
+				self.instructions = self.instructions[:-2]
 				self.load_immediate(f"r{reg1}")
-				self.instructions.append("COMP M D")
-				self.load_immediate(f"r{reg2}")
 				self.instructions.append(f"COMP {operation} D")
 
 		# Precompute expression
@@ -714,7 +714,12 @@ class Compiler:
 		
 		if self.d_reg in self.known_values:
 			self.instructions = self.instructions[:start_pos]
-		self.load_immediate(memory_location, f"{node.identifier}")
+		
+		comment = node.identifier
+		if node.length is not None:
+			comment += f" ({node.length} elements)"
+
+		self.load_immediate(memory_location, comment)
 		self.instructions.append("COMP D M" if self.d_reg not in self.known_values else f"COMP {self.d_reg} M") # Store result in D register to memory
 		self.memory[memory_location] = self.d_reg
 		
@@ -776,7 +781,7 @@ class Compiler:
 		# Set iterator to start value
 		location = self.symbols[node.identifier][1]
 		self.generate_code(node.start)
-		self.load_immediate(location, "Start value")
+		self.load_immediate(location, f"Start value <- {node.identifier}")
 		self.instructions += [f"COMP D M"]
 		
 		self.memory[location] = self.d_reg
@@ -835,7 +840,6 @@ class Compiler:
 		self.plotted = True
 
 	def visitArrayAccess(self, node: ArrayAccess):
-		res = CompileResult()
 		if isinstance(node.array, Identifier) and (node.array.symbol not in self.symbols or self.symbols[node.array.symbol][0] != "array"):
 			error = Exception(f"Undefined array: {node.array.symbol}")
 			error.start_pos = node.array.start_pos
@@ -870,17 +874,7 @@ class Compiler:
 			address = self.symbols[node.array.symbol][1]
 			base_pointer = self.memory[address]
 
-			res.register(self.compile(Statements(
-				node.index.start_pos,
-				node.index.end_pos,
-				[node.index]
-			), True))
-			if res.error:
-				error = Exception(res.error.details)
-				error.start_pos = res.error.start_pos
-				error.end_pos = res.error.end_pos
-				error.code = res.error.code
-				raise error
+			self.generate_code(node.index)
 			
 			if self.d_reg >= address - base_pointer:
 				error = Exception(f"Out of bounds: index must not exceed {address - base_pointer - 1}, found index {self.d_reg} instead.")
@@ -896,9 +890,6 @@ class Compiler:
 				error.code = 17
 				raise error
 			
-			self.instructions = self.instructions[:-1]
-			if self.instructions[-1] == "BUFR update":
-				self.instructions = self.instructions[:-1]
 			self.load_immediate(base_pointer, "Access base pointer")
 			self.instructions.append("COMP D+A A")
 			self.a_reg += self.d_reg
@@ -916,6 +907,21 @@ class Compiler:
 		if isinstance(node.array, ArrayLiteral):
 			base_pointer: int = self.generate_code(node.array)
 			self.generate_code(node.index)
+
+			if self.d_reg >= len(node.array.elements):
+				error = Exception(f"Out of bounds: index must not exceed {len(node.array.elements) - 1}, found index {self.d_reg} instead.")
+				error.start_pos = node.index.start_pos
+				error.end_pos = node.index.end_pos
+				error.code = 17
+				raise error
+			
+			if self.d_reg < 0:
+				error = Exception(f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
+				error.start_pos = node.index.start_pos
+				error.end_pos = node.index.end_pos
+				error.code = 17
+				raise error
+
 			self.load_immediate(base_pointer)
 			self.instructions.append("COMP D+A D")
 			self.d_reg += self.a_reg
@@ -930,23 +936,38 @@ class Compiler:
 			self.instructions.append("COMP D M")
 			self.d_reg = self.memory.get(self.a_reg, 0)
 		else: # Identifier, trickier to manage but still doable
-			self.generate_code(node.array)
-			base_pointer = self.d_reg
+			address = self.symbols[node.array.symbol][1]
+			base_pointer = self.memory[address]
+
+			self.generate_code(node.index)
+			
+			if self.d_reg >= address - base_pointer:
+				error = Exception(f"Out of bounds: index must not exceed {address - base_pointer - 1}, found index {self.d_reg} instead.")
+				error.start_pos = node.index.start_pos
+				error.end_pos = node.index.end_pos
+				error.code = 17
+				raise error
+			
+			if self.d_reg < 0:
+				error = Exception(f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
+				error.start_pos = node.index.start_pos
+				error.end_pos = node.index.end_pos
+				error.code = 17
+				raise error
+			
+			self.load_immediate(base_pointer, "Base pointer")
+			self.instructions.append("COMP D+A D")
+			self.d_reg += self.a_reg
 
 			pointer_reg = tuple(self.available_registers - self.allocated_registers)[0]
 			self.allocate_register(pointer_reg)
-			self.generate_code(node.index)
-			self.load_immediate(f"r{pointer_reg}", "Array pointer")
-			self.instructions.append("COMP D+M M")
-			self.memory[pointer_reg] += self.d_reg
+			self.a_reg = pointer_reg
+
 			self.generate_code(node.value)
-			self.load_immediate(f"r{pointer_reg}", "Array pointer")
-			self.instructions += [
-				"COMP M A",
-				"COMP D M"
-			]
-			self.a_reg = self.memory.get(pointer_reg, 0)
-			self.d_reg = self.memory.get(self.a_reg, 0)
+
+			self.load_immediate(f"r{pointer_reg}", "Set base pointer")
+			self.instructions.append("COMP M A")
+			self.instructions.append("COMP D M")
 			self.free_register(pointer_reg)
 
 	def visitIfStatement(self, node: IfStatement):
@@ -958,7 +979,7 @@ class Compiler:
 			self.load_immediate(f".condition{jump}")
 			self.instructions.append("COMP D JEQ")
 			self.generate_code(body)
-			self.load_immediate(f".endif{end}", "End if")
+			self.load_immediate(f".endif{end}", "End if body")
 			self.instructions.append("COMP 0 JMP")
 			self.instructions.append(f".condition{jump}")
 		
@@ -1003,28 +1024,35 @@ class Compiler:
 			raise error
 		
 		# Check if symbol is a subroutine
-		if self.symbols[node.sub_name][0] != "subroutine":
+		if self.symbols[node.sub_name][0] not in ("subroutine", "nativesub"):
 			error = Exception(f"Symbol {node.sub_name} is not a subroutine.")
 			error.start_pos = node.start_pos
 			error.end_pos = node.end_pos
 			error.code = 18
 			raise error
-
-		# Check number of arguments
-		memory_location: int = self.symbols[node.sub_name][1]
-		params: int = self.memory[memory_location]
-		if params != len(node.arguments):
-			error = Exception(f"Expected {params} arguments, got {len(node.arguments)} arguments instead.")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 19
-			raise error
 		
-		# Populate arguments
-		for i, arg in enumerate(node.arguments):
-			self.generate_code(arg)
-			self.load_immediate(memory_location - params + i, f"arg_{i}")
-			self.instructions.append("COMP D M")
-			self.memory[memory_location - params - i] = self.d_reg
+		if self.symbols[node.sub_name][0] == "subroutine":
+			# Check number of arguments
+			memory_location: int = self.symbols[node.sub_name][1]
+			params: int = self.memory.get(memory_location, 0)
+			if params != len(node.arguments):
+				error = Exception(f"Expected {params} arguments, got {len(node.arguments)} arguments instead.")
+				error.start_pos = node.start_pos
+				error.end_pos = node.end_pos
+				error.code = 19
+				raise error
+			
+			# Populate arguments
+			for i, arg in enumerate(node.arguments):
+				self.generate_code(arg)
+				self.load_immediate(memory_location - params + i, f"arg_{i}")
+				self.instructions.append("COMP D M")
+				self.memory[memory_location - params - i] = self.d_reg
 		
-		self.instructions.append(f"CALL .sub_{node.sub_name}")
+			self.instructions.append(f"CALL .sub_{node.sub_name}")
+		else: # Native subroutines
+			match node.sub_name:
+				case "update":
+					self.instructions.append(f"BUFR update")
+				case "flip":
+					self.instructions.append(f"BUFR move")
