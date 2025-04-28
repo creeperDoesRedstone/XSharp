@@ -1,5 +1,5 @@
 # Xenon's Languages
-![image](https://github.com/user-attachments/assets/e7d85f0d-228f-4404-b01a-e884c64e46f7)
+![Xenon](https://github.com/user-attachments/assets/e29f8e61-591e-4a44-a549-1169a43ae7d2)
 
 ## Overview
 This repository contains 2 programming languages:
