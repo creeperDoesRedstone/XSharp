@@ -25,7 +25,7 @@ value++          // Increment
 value--          // Decrement
 
 value1 < value2  // Less than
-value1 <= value2 // Less than / equal to
+value1 <= value2 // Less than or equal to
 value1 == value2 // Equal to
 value1 != value2 // Not equal to
 value1 > value2  // Greater than
@@ -115,16 +115,21 @@ sub sub_name(param1, param2, ...) {
 ```
 Once defined, a subroutine can be called using `sub_name(arg1, arg2, ...)`.
 
+### `Writing to the screen`
+You can use the `plot` keyword (deprecated) to plot a pixel value (`0` or `1`) to the buffer:
+```
+plot x y 0/1
+```
+To plot to the screen, use the subroutine calls `update()` or `flip()`:
+- `update()`: Transfer the contents of the buffer to the screen.
+- `flip()`: Transfer the contents of the buffer to the screen and clear it.
+
 ### `Other Things`
 The language has a few other functions:
 ```
 include operation // Includes the operations library
 17 * 2 // multiplication
 5 % 2 // modulo
-```
-You can also write to the screen using the `plot` keyword (deprecated):
-```
-plot x y 0/1
 ```
 
 ## XAssembly
