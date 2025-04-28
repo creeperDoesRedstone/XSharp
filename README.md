@@ -11,7 +11,7 @@ VSCode extension for these languages can be found at: https://marketplace.visual
 
 ## XSharp
 ### `Operations`
-```
+```js
 value1 + value2  // Addition
 value1 - value2  // Subtraction
 
@@ -45,32 +45,32 @@ $value           // Sign of value (-1 if negative, 0 if zero, 1 if positive)
 
 ### `Array literals`
 Array literals are elements encased in braces:
-```
+```js
 {1, 2, 3}
 {1, 2, i} // Valid, assuming i is defined beforehand
 ```
 
 ### `Variables and constants`
 Constants are defined using the `const` keyword:
-```
+```js
 const identifier value
 ```
 From that point, the compiler will replace all instances of the constant with its defined value.
 There are 2 built-in constants: `true` (-1) and `false` (0).
 
 Variables are defined using the `var` keyword:
-```
+```js
 var identifier: data_type = expression
 var identifier: data_type // If you don't want to assign a value just yet
 ```
 This allocates a memory address for the variable.
 
 Unlike constants, variables can be changed using the `=` operator:
-```
+```js
 identifier = expression
 ```
 The memory address of a variable can be accessed using the `&` operator:
-```
+```js
 &identifier
 ```
 
@@ -78,23 +78,23 @@ The memory address of a variable can be accessed using the `&` operator:
 For loops have `start`, `end`, and `step` values.
 
 Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
-```
+```lua
 for identifier start: expr end: expr step: expr { <body> }
 ```
 While loops will execute until the value of `condition` is 0:
-```
+```lua
 while condition { <body> }
 ```
 
 ### `Conditionals`
 If statements execute if a condition evaluates to `true` (-1).
-```
+```lua
 if condition {
     do_something
 }
 ```
 If there are multiple conditions, you can use the `elseif` keyword:
-```
+```lua
 if condition1 {
     do_something
 } elseif condition2 {
@@ -102,7 +102,7 @@ if condition1 {
 }
 ```
 Finally, you can use the `else` keyword to execute something if all the above conditions are false:
-```
+```lua
 if condition1 {
     do_something
 } elseif condition2 {
@@ -114,7 +114,7 @@ if condition1 {
 
 ### `Subroutines`
 A subroutine is defined as follows:
-```
+```perl
 sub sub_name(param1, param2, ...) {
     body
 }
@@ -123,7 +123,7 @@ Once defined, a subroutine can be called using `sub_name(arg1, arg2, ...)`.
 
 ### `Writing to the screen`
 You can use the `plot` keyword (deprecated) to plot a pixel value (`0` or `1`) to the buffer:
-```
+```matlab
 plot x y 0/1
 ```
 To plot to the screen, use the subroutine calls `update()` or `flip()`:
@@ -132,7 +132,7 @@ To plot to the screen, use the subroutine calls `update()` or `flip()`:
 
 ### `Other Things`
 The language has a few other functions:
-```
+```cpp
 include operation // Includes the operations library
 17 * 2 // multiplication
 5 % 2 // modulo
