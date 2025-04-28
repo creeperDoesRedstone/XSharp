@@ -55,6 +55,7 @@ class Compiler:
 		result = CompileResult()
 		self.a_reg = 0
 		self.d_reg = 0
+		self.jumps = 0
 
 		if not ast.body:
 			return result.success(["HALT"])
@@ -665,11 +666,16 @@ class Compiler:
 		temp_a_reg = self.a_reg
 		temp_d_reg = self.d_reg
 
+		temp_jumps = self.jumps
+		temp_jumps_dict = self.jumps_dict
+
 		self.generate_code(node.value)
 		self.symbols[node.symbol.symbol] = ("const", self.d_reg)
 
 		self.a_reg = temp_a_reg
 		self.d_reg = temp_d_reg
+		self.jumps = temp_jumps
+		self.jumps_dict = temp_jumps_dict
 		self.instructions = self.instructions[:start_pos]
 
 	def visitVarDeclaration(self, node: VarDeclaration):
@@ -682,7 +688,8 @@ class Compiler:
 			raise error
 
 		start_pos = len(self.instructions)
-		base_pointer: int|None = self.generate_code(node.value)
+		if node.value:
+			value: int|None = self.generate_code(node.value)
 		memory_location: int = 16 + self.vars
 
 		if node.length is not None:
@@ -694,9 +701,9 @@ class Compiler:
 				raise error
 
 			self.symbols[node.identifier] = ("array", memory_location)
-			self.memory[memory_location] = base_pointer
-			base_pointer: int
-			self.load_immediate(base_pointer, f"array_{node.identifier}")
+			self.memory[memory_location] = value
+			value: int
+			self.load_immediate(value, f"array_{node.identifier}")
 			self.instructions.append("COMP A D") # Load base pointer
 			self.d_reg = self.a_reg
 		else:
@@ -719,9 +726,10 @@ class Compiler:
 		if node.length is not None:
 			comment += f" ({node.length} elements)"
 
-		self.load_immediate(memory_location, comment)
-		self.instructions.append("COMP D M" if self.d_reg not in self.known_values else f"COMP {self.d_reg} M") # Store result in D register to memory
-		self.memory[memory_location] = self.d_reg
+		if node.value:
+			self.load_immediate(memory_location, comment)
+			self.instructions.append("COMP D M" if self.d_reg not in self.known_values else f"COMP {self.d_reg} M") # Store result in D register to memory
+			self.memory[memory_location] = self.d_reg
 		
 		self.vars += 1
 
@@ -755,20 +763,9 @@ class Compiler:
 		self.instructions += [
 			"COMP D M"
 		] # Store result in D register to memory
-		self.d_reg = self.memory[addr]
+		self.d_reg = self.memory.get(addr, 0)
 
 	def visitForLoop(self, node: ForLoop):
-		if not node.body.body:
-			# Loop is empty, so there is no need to execute it
-			if node.end in self.known_values:
-				self.instructions.append(f"COMP {node.end} D")
-			else:
-				self.load_immediate(node.end, f"End value")
-				self.instructions.append("COMP A D")
-			
-			self.d_reg = node.end
-			return
-
 		# Check if identifier is a variable
 		if node.identifier not in self.symbols.keys() or\
 		self.symbols.get(node.identifier)[0] in ("const", "array", "subroutine"):
@@ -777,12 +774,21 @@ class Compiler:
 			error.end_pos = node.end_pos
 			error.code = 14
 			raise error
+		
+		location = self.symbols[node.identifier][1]
+
+		if not node.body.body: # Loop is empty, so there is no need to execute it
+			end = self.generate_code(node.end)			
+			self.d_reg = end
+			self.load_immediate(location, f"End value <- {node.identifier}")
+			self.instructions += ["COMP D M"]
+			self.memory[location] = self.d_reg
+			return
 
 		# Set iterator to start value
-		location = self.symbols[node.identifier][1]
 		self.generate_code(node.start)
 		self.load_immediate(location, f"Start value <- {node.identifier}")
-		self.instructions += [f"COMP D M"]
+		self.instructions += ["COMP D M"]
 		
 		self.memory[location] = self.d_reg
 		jump: int = self.make_jump_label(name="for")
@@ -1056,3 +1062,4 @@ class Compiler:
 					self.instructions.append(f"BUFR update")
 				case "flip":
 					self.instructions.append(f"BUFR move")
+					self.plotted = False
