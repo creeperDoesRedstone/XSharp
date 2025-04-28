@@ -38,6 +38,8 @@ $value           // Sign of value (-1 if negative, 0 if zero, 1 if positive)
 ### `Data types`
 - `int`: Represents an integer.
 - `int[]`: Represents an array of integers.
+- `bool`: Represents a boolean (`true` or `false`).
+- `bool[]`: Represents an array of booleans.
 
 ### `Array literals`
 Array literals are elements encased in braces:
