@@ -310,23 +310,32 @@ class Parser:
 				))
 			self.advance()
 
+		expr = None
 		if self.current_token.token_type != TT.ASSIGN:
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected '=' after ':'."
-			))
-		self.advance()
+			end_pos = self.current_token.end_pos
+			if length:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '=' after array declaration."
+				))
+			if self.current_token.token_type not in (TT.NEWLINE, TT.EOF):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '=', a nwewline, or EOF after ':'."
+				))
+		else:
+			self.advance()
 
-		expr = res.register(self.expression())
-		if res.error: return res
-		end_pos = self.current_token.end_pos
+			expr = res.register(self.expression())
+			if res.error: return res
+			end_pos = self.current_token.end_pos
 
-		if self.current_token.token_type not in (TT.NEWLINE, TT.EOF):
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected a newline or EOF after variable declaration."
-			))
-		
+			if self.current_token.token_type not in (TT.NEWLINE, TT.EOF):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected a newline or EOF after variable declaration."
+				))
+			
 		return res.success(VarDeclaration(identifier, expr, data_type, start_pos, end_pos, length))
 
 	def for_loop(self):
