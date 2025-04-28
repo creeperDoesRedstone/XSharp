@@ -40,4 +40,5 @@ for i start: 0 end: 25 step: 1 {
         e = e + b
     }
     plot x y 1
+    update()
 }
