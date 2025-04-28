@@ -20,4 +20,5 @@ for i start: 0 end: length step: 1 {
     for j start: 0 end: array[i] step: 1 {
         plot i j 1
     }
+    update()
 }
