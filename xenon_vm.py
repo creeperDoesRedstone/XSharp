@@ -3,8 +3,6 @@ from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
 from PyQt6.QtCore import QRegularExpression, QTimer
 from PyQt6 import uic
 
-from functools import partial
-
 from xsharp_compiler import Compiler
 from screen_writer import write_screen
 
@@ -149,6 +147,7 @@ class VirtualMachine(QMainWindow):
 
 		current_inst = PROM[self.program_counter]
 		self.current_inst.setText(f"Instruction: {self.program_counter}")
+		self.branch.setText("Branch not taken")
 
 		op_code = current_inst[-2:]
 
@@ -229,6 +228,7 @@ class VirtualMachine(QMainWindow):
 
 			if jump:
 				self.program_counter = self.a_reg_value
+				self.branch.setText("Branch taken")
 			else:
 				self.program_counter += 1
 
