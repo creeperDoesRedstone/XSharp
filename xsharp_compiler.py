@@ -73,7 +73,6 @@ class Compiler:
 				self.plotted = False
 				self.instructions.append(f".sub_{sub.name}")
 				self.generate_code(sub.body)
-				if self.plotted: self.instructions.append("BUFR move")
 				self.instructions.append("RETN")
 			
 			return result.success(self.instructions)
@@ -233,6 +232,7 @@ class Compiler:
 
 				value = op.replace("D", f"{left}").replace("M", f"{right}")
 				result = eval(value)
+				if op == "M-D": result = -result
 
 				if result == True: result = -1
 				if result == False: result = 0
