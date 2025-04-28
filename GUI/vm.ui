@@ -225,12 +225,12 @@ QPushButton:hover {
      <rect>
       <x>170</x>
       <y>60</y>
-      <width>181</width>
+      <width>221</width>
       <height>16</height>
      </rect>
     </property>
     <property name="maximum">
-     <number>100</number>
+     <number>500</number>
     </property>
     <property name="orientation">
      <enum>Qt::Horizontal</enum>
@@ -247,6 +247,22 @@ QPushButton:hover {
     </property>
     <property name="text">
      <string>Clock speed: Instant</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="branch">
+    <property name="geometry">
+     <rect>
+      <x>410</x>
+      <y>530</y>
+      <width>351</width>
+      <height>40</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">color: rgb(255, 255, 0)</string>
+    </property>
+    <property name="text">
+     <string>Branch not taken</string>
     </property>
    </widget>
   </widget>
