@@ -95,7 +95,15 @@ def assemble(ftxt: str):
 							jump = JUMPS.get(ln[2])
 						else:
 							for i, location in enumerate("DAM"):
-								if location in ln[2]: dest[i] = "1"
+								if location in ln[2]:
+									dest[i] = "1"
+					
+					if len(ln) == 4:
+						if ln[3] in JUMPS.keys():
+							# Jump
+							jump = JUMPS.get(ln[3])
+						else:
+							raise ValueError(f"Unrecognized jump: {ln[3]}")
 
 					binary_result.append(f"{bin(code)[2:].zfill(8)}{''.join(dest)}{bin(jump)[2:].zfill(3)}11")
 
@@ -126,7 +134,6 @@ def assemble(ftxt: str):
 					except ValueError:
 						return ValueError(f"Label '{address}' unbound.")
 
-					print(convert_to_bin(value, 12))
 					binary_result.append(f"{convert_to_bin(value, 12)}1000")
 				
 				case "RETN": # Return instruction
