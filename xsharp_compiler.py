@@ -38,7 +38,8 @@ class Compiler:
 			"true": ("const", -1),
 			"false": ("const", 0),
 			"update": ("nativesub", 0),
-			"flip": ("nativesub", 0)
+			"flip": ("nativesub", 0),
+			"halt": ("nativesub", 0),
 		}
 
 		self.vars: int = 0
@@ -65,7 +66,8 @@ class Compiler:
 			if len(self.instructions) > 0 and self.instructions[-1] == "COMP A D" and remove_that_one_line:
 				self.instructions = self.instructions[:-1]
 
-			if self.plotted: self.instructions.append("BUFR update")
+			if self.plotted and "BUFR update" not in self.instructions:
+				self.instructions.append("BUFR update") # Auto-update screen
 			self.instructions.append("HALT")  # Ensure program ends with HALT
 			self.peephole_optimize()
 
@@ -142,9 +144,11 @@ class Compiler:
 
 		return self.jumps - 1
 
-	def comparison(self, reg1: int, reg2: int, jump: Literal["JLT", "JLE", "JEQ", "JGT", "JNE", "JGE"]):
+	def comparison(self, reg1: int, end_pos: int, jump: Literal["JLT", "JLE", "JEQ", "JGT", "JNE", "JGE"]):
 		true = self.make_jump_label(False, "true")
 		end = self.make_jump_label(False, "false")
+
+		self.instructions = self.instructions[:end_pos]
 
 		self.load_immediate(f"r{reg1}")
 		self.instructions.append("COMP M-D D")
@@ -256,9 +260,9 @@ class Compiler:
 		reg1 = tuple(self.available_registers - self.allocated_registers)[0]
 		self.allocate_register(reg1)
 
-		right_pos: int = len(self.instructions)
 		right = self.generate_code(node.right)
 		# Allocate a register for right side
+		right_pos: int = len(self.instructions)
 		reg2 = tuple(self.available_registers - self.allocated_registers)[0]
 		self.allocate_register(reg2)
 
@@ -422,17 +426,17 @@ class Compiler:
 					self.load_immediate(f"r{reg1}")
 					self.instructions.append("COMP M D")
 
-			case "<": self.comparison(reg1, reg2, "JLT")
+			case "<": self.comparison(reg1, right_pos, "JLT")
 			
-			case "<=": self.comparison(reg1, reg2, "JLE")
+			case "<=": self.comparison(reg1, right_pos, "JLE")
 
-			case "==": self.comparison(reg1, reg2, "JEQ")
+			case "==": self.comparison(reg1, right_pos, "JEQ")
 
-			case "!=": self.comparison(reg1, reg2, "JNE")
+			case "!=": self.comparison(reg1, right_pos, "JNE")
 
-			case ">": self.comparison(reg1, reg2, "JGT")
+			case ">": self.comparison(reg1, right_pos, "JGT")
 
-			case ">=": self.comparison(reg1, reg2, "JGE")
+			case ">=": self.comparison(reg1, right_pos, "JGE")
 
 			case _:
 				self.instructions = self.instructions[:-2]
@@ -451,13 +455,13 @@ class Compiler:
 	def visitUnaryOperation(self, node: UnaryOperation):
 		if str(node.op.token_type) == "AND": # Address operator (&identifier)
 			if (not self.symbols.get(node.value.symbol, None)) or (self.symbols[node.value.symbol][0] == "const"):
-				error = Exception(f"Undefined symbol: {node.value.symbol}")
+				error = Exception(f"Undefined variable: {node.value.symbol}")
 				error.start_pos = node.start_pos
 				error.end_pos = node.end_pos
 				error.code = 4
 				raise error
 			
-			self.load_immediate(self.symbols.get(node.value.symbol))
+			self.load_immediate(self.symbols.get(node.value.symbol, (0, 0))[1])
 			self.instructions.append("COMP A D")
 			return
 
@@ -687,7 +691,6 @@ class Compiler:
 			error.code = 10
 			raise error
 
-		start_pos = len(self.instructions)
 		if node.value:
 			value: int|None = self.generate_code(node.value)
 		memory_location: int = 16 + self.vars
@@ -719,16 +722,13 @@ class Compiler:
 						raise error
 					self.symbols[node.identifier] = ("bool", memory_location)
 		
-		if self.d_reg in self.known_values:
-			self.instructions = self.instructions[:start_pos]
-		
 		comment = node.identifier
 		if node.length is not None:
 			comment += f" ({node.length} elements)"
 
 		if node.value:
 			self.load_immediate(memory_location, comment)
-			self.instructions.append("COMP D M" if self.d_reg not in self.known_values else f"COMP {self.d_reg} M") # Store result in D register to memory
+			self.instructions.append("COMP D M") # Store result in D register to memory
 			self.memory[memory_location] = self.d_reg
 		
 		self.vars += 1
@@ -981,13 +981,13 @@ class Compiler:
 		for condition, body in node.cases:
 			self.generate_code(condition)
 			
-			jump = self.make_jump_label(False, "condition")
-			self.load_immediate(f".condition{jump}")
+			jump = self.make_jump_label(False, "if")
+			self.load_immediate(f".if{jump}")
 			self.instructions.append("COMP D JEQ")
 			self.generate_code(body)
 			self.load_immediate(f".endif{end}", "End if body")
 			self.instructions.append("COMP 0 JMP")
-			self.instructions.append(f".condition{jump}")
+			self.instructions.append(f".if{jump}")
 		
 		if node.else_case:
 			self.generate_code(node.else_case)
@@ -1059,7 +1059,10 @@ class Compiler:
 		else: # Native subroutines
 			match node.sub_name:
 				case "update":
-					self.instructions.append(f"BUFR update")
+					self.instructions.append("BUFR update")
+					self.plotted = True
 				case "flip":
-					self.instructions.append(f"BUFR move")
+					self.instructions.append("BUFR move")
 					self.plotted = False
+				case "halt":
+					self.instructions.append("HALT")
