@@ -250,7 +250,7 @@ class VirtualMachine(QMainWindow):
 				else:
 					if (x, y) not in self.buffer: self.buffer.append((x, y))
 			else: # Update buffer
-				op_code = current_inst[0:2]
+				op_code = current_inst[11:13]
 
 				if op_code[1] == "0":
 					for x, y in self.screen:
@@ -286,7 +286,7 @@ class VirtualMachine(QMainWindow):
 			self.run_timer.stop()
 
 	def run(self, code: str, max_steps: int|None = None):
-		NOOP = "0" * 16
+		NOOP = "000000000000"
 
 		PROM = code.strip().splitlines()
 		PROM.extend([NOOP] * (MAX_INSTRUCTIONS - len(PROM)))
