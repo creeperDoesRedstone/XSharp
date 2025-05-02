@@ -117,11 +117,11 @@ def assemble(ftxt: str):
 
 					op_code: str = ""
 					match ln[1]:
-						case "move": op_code = "00"
-						case "update": op_code = "10"
+						case "move": op_code = "10"
+						case "update": op_code = "00"
 						case _: raise ValueError(f"Line {line_num + 1}: Expected 'move' or 'update', got '{ln[1]}' instead.")
 					
-					binary_result.append(f"{op_code}{'0' * 11}001")
+					binary_result.append(f"{'0' * 11}{op_code}001")
 
 				case "CALL": # Call instruction
 					if len(ln) != 2: raise SyntaxError(f"Line {line_num + 1}: Expected 1 argument for instruction CALL, found {len(ln) - 1} arguments instead.")
