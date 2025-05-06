@@ -1,6 +1,7 @@
-LDIA 4
+LDIA .correct
 COMP A JGT
 LDIA 69 // Loads a junk value into the A register
 HALT
+.correct
 LDIA 100 // This is the correct value that the A register should store
 HALT
