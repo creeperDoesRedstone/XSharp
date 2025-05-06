@@ -260,13 +260,8 @@ class VirtualMachine(QMainWindow):
 					for x, y in self.screen:
 						pixel: QLabel = getattr(self, f"px[{x}][{y}]")
 						pixel.setStyleSheet(ON_STYLESHEET)
-				else:
-					for x, y in self.buffer:
-						pixel: QLabel = getattr(self, f"px[{x}][{y}]")
-						pixel.setStyleSheet(ON_STYLESHEET)
-						if (x, y) not in self.screen: self.screen.append((x, y))
 
-				if op_code[0] == "0":
+				if op_code[0] == "1":
 					self.buffer = []
 			
 			self.program_counter += 1
