@@ -36,14 +36,14 @@ def load_from_prom(PROM: list[str]) -> mcschematic.MCSchematic:
 		
 	return schem
 
-
-fn: str = input("Enter the file name of the program: ")
-try:
-	file = open(f"binary/{fn}", "r")
-except FileNotFoundError:
-	print(f"The path 'binary/{fn}' does not exist.")
-else:
-	program_memory: list[str] = file.read().splitlines()
-	program = load_from_prom(program_memory)
-	program.save("schematics", fn.replace(".bin", ""), mcschematic.Version.JE_1_19_4)
-	file.close()
+if __name__ == "__main__":
+	fn: str = input("Enter the file name of the program: ")
+	try:
+		file = open(f"binary/{fn}", "r")
+	except FileNotFoundError:
+		print(f"The path 'binary/{fn}' does not exist.")
+	else:
+		program_memory: list[str] = file.read().splitlines()
+		program = load_from_prom(program_memory)
+		program.save("schematics", fn.replace(".bin", ""), mcschematic.Version.JE_1_19_4)
+		file.close()
