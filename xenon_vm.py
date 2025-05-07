@@ -22,8 +22,8 @@ class BinSyntaxHighlighter(QSyntaxHighlighter):
 
 		self.add_rule(r"\b\d{14}10$\b", "load_inst")
 		self.add_rule(r"\b\d{14}11$\b", "comp_inst")
-		self.add_rule(r"\b1\d{12}101$\b", "plot_inst")
-		self.add_rule(r"\b0\d{12}101$\b", "plot_inst_off")
+		self.add_rule(r"\b\d{12}1101$\b", "plot_inst")
+		self.add_rule(r"\b\d{12}0101$\b", "plot_inst_off")
 		self.add_rule(r"\b\d{13}001\b", "buffer_inst")
 		self.add_rule(r"\b0000000000000100\b", "halt_inst")
 
@@ -236,7 +236,7 @@ class VirtualMachine(QMainWindow):
 			ON_STYLESHEET: str = "background-color: rgb(255, 225, 115); border: 1px solid rgb(204, 171, 51);"
 			OFF_STYLESHEET: str = "background-color: rgb(117, 76, 19); border: 1px solid rgb(89, 52, 0);"
 			if current_inst[13] == "1": # Plot
-				val = int(current_inst[0])
+				val = int(current_inst[12])
 				x = self.memory_value[Compiler().X_ADDR]
 				y = self.memory_value[Compiler().Y_ADDR]
 
