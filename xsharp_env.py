@@ -32,6 +32,9 @@ class Environment(QMainWindow):
 
 		self.file_name.setText(self.fn.split("/")[-1])
 		self.file_name.setReadOnly(True)
+
+		with open(self.fn, "r") as f:
+			self.file_text.setText(f.read())
 	
 	def eventFilter(self, source: QObject, event: QEvent):
 		code_cursor: QTextCursor = self.file_text.textCursor()
@@ -202,8 +205,8 @@ class Environment(QMainWindow):
 			with open(f"programs/{self.file_name.text()}", "w") as f:
 				f.write(self.file_text.toPlainText())
 			
-			program_schem = load_from_prom(result)
-			program_schem.save("schematics", self.file_name.text(), Version.JE_1_19_4)
+			schem = load_from_prom(result)
+			schem.save("schematics", self.file_name.text().replace(".xs", ""), Version.JE_1_19_4)
 
 			self.fn = ""
 
