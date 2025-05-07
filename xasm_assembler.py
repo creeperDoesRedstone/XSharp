@@ -110,7 +110,7 @@ def assemble(ftxt: str):
 				case "PLOT": # Plot pixel to buffer
 					if len(ln) != 2: raise SyntaxError(f"Line {line_num + 1}: Expected 1 argument for instruction PLOT, found {len(ln) - 1} arguments instead.")
 
-					binary_result.append(f"{ln[1]}{'0' * 12}101")
+					binary_result.append(f"{'0' * 12}{ln[1]}101")
 
 				case "BUFR": # Buffer instructions
 					if len(ln) != 2: raise SyntaxError(f"Line {line_num + 1}: Expected 1 argument for instruction BUFR, found {len(ln) - 1} arguments instead.")
@@ -253,6 +253,8 @@ class XAsmAssembler(QMainWindow):
 			if self.fn:
 				with open(self.fn.replace(".xasm", ".bin").replace("assembly", "binary", 1), "w") as file:
 					file.write("\n".join(result))
+				with open(f"programs/{self.file_name.text()}", "w") as f:
+					f.write(self.file_text.toPlainText())
 				self.fn = ""
 
 if __name__ == "__main__":
