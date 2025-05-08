@@ -37,9 +37,11 @@ class Compiler:
 		self.symbols: dict[str, tuple[str, int]] = {
 			"true": ("const", -1),
 			"false": ("const", 0),
+			"N_BITS": ("const", 16),
 			"update": ("nativesub", 0),
 			"flip": ("nativesub", 0),
 			"halt": ("nativesub", 0),
+			"plot": ("nativesub", 0),
 		}
 
 		self.vars: int = 0
@@ -51,6 +53,13 @@ class Compiler:
 		self.input_addr = 2050
 
 		self.known_values = (-2, -1, 0, 1)
+
+	def raise_error(self, node, code: int, message: str):
+		error = Exception(message)
+		error.start_pos = node.start_pos
+		error.end_pos = node.end_pos
+		error.code = code
+		raise error
 
 	def compile(self, ast: Statements, remove_that_one_line: bool = False):
 		result = CompileResult()
@@ -260,6 +269,7 @@ class Compiler:
 		reg1 = tuple(self.available_registers - self.allocated_registers)[0]
 		self.allocate_register(reg1)
 
+		right_start: int = len(self.instructions)
 		right = self.generate_code(node.right)
 		# Allocate a register for right side
 		right_pos: int = len(self.instructions)
@@ -287,7 +297,9 @@ class Compiler:
 			value = value.replace("M", f"{right}")
 
 			self.instructions = self.instructions[:start_pos]
-			result = int(eval(value))
+			result = eval(value)
+			if result == True: result = -1
+			if result == False: result = 0
 
 			if result in self.known_values: # Known values in the ISA
 				self.instructions.append(f"COMP {result} D")
@@ -314,7 +326,7 @@ class Compiler:
 			raise error
 		
 		match operation[1:-1]:
-			case "*":
+			case "*": # Shift-and-add algorithm
 				self.instructions.append("COMP 0 D")
 				product = tuple(self.available_registers - self.allocated_registers)[0]
 				self.allocate_register(product)
@@ -362,7 +374,7 @@ class Compiler:
 			
 			case ">>":
 				if right in (0, 1):
-					self.instructions = self.instructions[:right_pos]
+					self.instructions = self.instructions[:right_start]
 					if right == 1:
 						self.instructions.append("COMP >>M D")
 						self.d_reg = self.memory[self.a_reg] >> 1
@@ -395,7 +407,7 @@ class Compiler:
 
 			case "<<":
 				if right in (0, 1):
-					self.instructions = self.instructions[:right_pos]
+					self.instructions = self.instructions[:right_start]
 					if right == 1:
 						self.instructions.append("COMP D+M D")
 						self.d_reg = self.memory[self.a_reg] << 1
@@ -446,6 +458,8 @@ class Compiler:
 		# Precompute expression
 		expr = f"{self.d_reg}{operation[1:-1]}{self.memory[reg2]}"
 		expr_result = eval(expr)
+		if expr_result == True: expr_result = -1
+		if expr_result == False: expr_result = 0
 		self.d_reg = expr_result
 
 		# Free temporary registers allocated earlier
@@ -697,11 +711,7 @@ class Compiler:
 
 		if node.length is not None:
 			if node.length != len(node.value.elements):
-				error = Exception(f"Expected array length {len(node.value.elements)}, got {node.length} instead.")
-				error.start_pos = node.start_pos
-				error.end_pos = node.end_pos
-				error.code = 11
-				raise error
+				self.raise_error(node, 11, f"Expected array length {len(node.value.elements)}, got {node.length} instead.")
 
 			self.symbols[node.identifier] = ("array", memory_location)
 			self.memory[memory_location] = value
@@ -715,11 +725,7 @@ class Compiler:
 					self.symbols[node.identifier] = ("int", memory_location)
 				case "bool":
 					if self.d_reg not in (-1, 0):
-						error = Exception("Expected a boolean, got an integer instead.")
-						error.start_pos = node.value.start_pos
-						error.end_pos = node.value.end_pos
-						error.code = 16
-						raise error
+						self.raise_error(node.value, 16, "Expected a boolean, got an integer instead.")
 					self.symbols[node.identifier] = ("bool", memory_location)
 		
 		comment = node.identifier
@@ -735,20 +741,12 @@ class Compiler:
 
 	def visitAssignment(self, node: Assignment):
 		if node.identifier.symbol not in self.symbols.keys():
-			error = Exception(f"Undefined variable: {node.identifier.symbol}.")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 13
-			raise error
+			self.raise_error(node, 13, f"Undefined variable: {node.identifier.symbol}.")
 
 		self.generate_code(node.expr)
 
 		if self.symbols[node.identifier.symbol][0] == "const":
-			error = Exception(f"Cannot assign to constant '{node.identifier.symbol}'.")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 12
-			raise error
+			self.raise_error(node, 12, f"Cannot assign to constant '{node.identifier.symbol}'.")
 
 		if self.symbols[node.identifier.symbol][0] == "array":
 			error = Exception(f"Undefined variable: {node.identifier.symbol}.")
@@ -828,22 +826,6 @@ class Compiler:
 
 		self.instructions.append(f".endwhile{end_loop}")
 		self.a_reg = self.jumps_dict[end_loop]
-	
-	def visitPlotExpr(self, node: PlotExpr):
-		# X coordinate
-		self.generate_code(node.x)
-		self.load_immediate(self.X_ADDR, "X Port")
-		self.instructions.append("COMP D M")
-		self.memory[self.X_ADDR] = self.d_reg
-
-		# Y coordinate
-		self.generate_code(node.y)
-		self.load_immediate(self.Y_ADDR, "Y Port")
-		self.instructions.append("COMP D M")
-		self.memory[self.Y_ADDR] = self.d_reg
-
-		self.instructions.append(f"PLOT {node.value}")
-		self.plotted = True
 
 	def visitArrayAccess(self, node: ArrayAccess):
 		if isinstance(node.array, Identifier) and (node.array.symbol not in self.symbols or self.symbols[node.array.symbol][0] != "array"):
@@ -1042,11 +1024,7 @@ class Compiler:
 			memory_location: int = self.symbols[node.sub_name][1]
 			params: int = self.memory.get(memory_location, 0)
 			if params != len(node.arguments):
-				error = Exception(f"Expected {params} arguments, got {len(node.arguments)} arguments instead.")
-				error.start_pos = node.start_pos
-				error.end_pos = node.end_pos
-				error.code = 19
-				raise error
+				self.raise_error(node, 19, f"Expected {params} arguments, got {len(node.arguments)} arguments instead.")
 			
 			# Populate arguments
 			for i, arg in enumerate(node.arguments):
@@ -1059,10 +1037,41 @@ class Compiler:
 		else: # Native subroutines
 			match node.sub_name:
 				case "update":
+					if len(node.arguments) != 0:
+						self.raise_error(node, 19, f"Expected 0 arguments, got {len(node.arguments)} arguments instead.")
 					self.instructions.append("BUFR update")
 					self.plotted = True
 				case "flip":
+					if len(node.arguments) != 0:
+						self.raise_error(node, 19, f"Expected 0 arguments, got {len(node.arguments)} arguments instead.")
 					self.instructions.append("BUFR move")
 					self.plotted = False
 				case "halt":
+					if len(node.arguments) != 0:
+						self.raise_error(node, 19, f"Expected 0 arguments, got {len(node.arguments)} arguments instead.")
 					self.instructions.append("HALT")
+				case "plot":
+					if len(node.arguments) != 3:
+						self.raise_error(node, 19, f"Expected 3 arguments, got {len(node.arguments)} arguments instead.")
+					
+					# X Port
+					self.generate_code(node.arguments[0])
+					self.load_immediate(self.X_ADDR, "X Port")
+					self.instructions.append("COMP D M")
+					self.memory[self.X_ADDR] = self.d_reg
+
+					# Y Port
+					self.generate_code(node.arguments[1])
+					self.load_immediate(self.Y_ADDR, "Y Port")
+					self.instructions.append("COMP D M")
+					self.memory[self.Y_ADDR] = self.d_reg
+
+					# Value
+					if not isinstance(node.arguments[2], IntLiteral):
+						self.raise_error(node.arguments[2], 20, "Expected 0 or 1 for argument 3.")
+					
+					if node.arguments[2].value not in (0, 1):
+						self.raise_error(node.arguments[2], 20, "Expected 0 or 1 for argument 3.")
+					self.instructions.append(f"PLOT {node.arguments[2].value}")
+
+					self.plotted = True
