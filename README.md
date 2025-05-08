@@ -121,15 +121,25 @@ sub sub_name(param1, param2, ...) {
 ```
 Once defined, a subroutine can be called using `sub_name(arg1, arg2, ...)`.
 
-### `Writing to the screen`
-You can use the `plot` keyword (deprecated) to plot a pixel value (`0` or `1`) to the buffer:
-```matlab
-plot x y 0/1
-```
-To plot to the screen, use the subroutine calls `update()` or `flip()`:
-- `update()`: Transfer the contents of the buffer to the screen.
-- `flip()`: Transfer the contents of the buffer to the screen and clear it.
+### `Native subroutines`
+The `plot` subroutine plots a pixel value `(0/1)` to the screen buffer at the coordinates `(x, y)`.
 
+It replaces the deprecated `plot` keyword in previous versions.
+```cpp
+plot(x, y, val)
+```
+The `update` subroutine updates the contents of the screen buffer to the screen.
+```cpp
+update()
+```
+The `flip` subroutine does the same thing and clears the screen buffer.
+```cpp
+flip()
+```
+The `halt` subroutine halts the execution of the program.
+```cpp
+halt()
+```
 ### `Other Things`
 The language has a few other functions:
 ```cpp
