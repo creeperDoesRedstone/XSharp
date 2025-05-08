@@ -5,7 +5,7 @@ import string
 KEYWORDS = [
 	"const", "var",
 	"for", "start", "end", "step",
-	"while", "plot",
+	"while",
 	"if", "elseif", "else",
 	"include",
 	"sub"
