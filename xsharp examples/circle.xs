@@ -8,14 +8,14 @@ var d: int = 1 - radius  // Initial decision variable
 
 // Function to plot all 8 symmetric points
 sub plot_points() {
-	plot xc + x yc + y 1
-	plot xc - x yc + y 1
-	plot xc + x yc - y 1
-	plot xc - x yc - y 1
-	plot xc + y yc + x 1
-	plot xc - y yc + x 1
-	plot xc + y yc - x 1
-	plot xc - y yc - x 1
+	plot(xc + x, yc + y, 1)
+	plot(xc - x, yc + y, 1)
+	plot(xc + x, yc - y, 1)
+	plot(xc - x, yc - y, 1)
+	plot(xc + y, yc + x, 1)
+	plot(xc - y, yc + x, 1)
+	plot(xc + y, yc - x, 1)
+	plot(xc - y, yc - x, 1)
 	update()
 }
 
