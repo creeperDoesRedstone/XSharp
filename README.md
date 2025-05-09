@@ -183,9 +183,9 @@ PLOT value
 ### `BUFR`
 This instruction is responsible for porting the buffer data to the screen.
 
-You can specify one of four modes:
+You can specify one of tưo modes:
   - `move`: Moves the buffer's content onto the screen, erasing previous data on the screen and clearing the buffer.
-  - `update`: Same as `move`, but doesn't clear the buffer.
+  - `update`: Same as `move`, but the buffer's contents are retained.
 ```
 BUFR mode
 ```
