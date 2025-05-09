@@ -2,7 +2,7 @@ from xsharp_parser import *
 from xsharp_helper import CompilationError
 from typing import Literal
 
-# Error codes: 18
+# Error codes: 20
 
 class CompileResult:
 	def __init__(self):
@@ -56,8 +56,10 @@ class Compiler:
 
 	def raise_error(self, node, code: int, message: str):
 		error = Exception(message)
-		error.start_pos = node.start_pos
-		error.end_pos = node.end_pos
+		if node is None:
+			error.start_pos, error.end_pos = None, None
+		else:
+			error.start_pos, error.end_pos = node.start_pos, node.end_pos
 		error.code = code
 		raise error
 
@@ -119,11 +121,7 @@ class Compiler:
 	def allocate_register(self, register: int):
 		# Allocates a temporary register
 		if len(self.allocated_registers) == 16:
-			error = Exception("Too many temporary registers! Refine your code!")
-			error.start_pos = None
-			error.end_pos = None
-			error.code = 0
-			raise error
+			self.raise_error(None, 0, "Too many temporary registers! Refine your code!")
 
 		self.allocated_registers.add(register)
 		self.available_registers.remove(register)
@@ -183,11 +181,7 @@ class Compiler:
 		self.a_reg = value if isinstance(value, int) or not value.startswith("r") else int(value[1:])
 
 	def noVisitMethod(self, node):
-		error = Exception(f"Unknown AST node type: {type(node).__name__}")
-		error.start_pos = node.start_pos
-		error.end_pos = node.end_pos
-		error.code = 1
-		raise error
+		self.raise_error(node, 1, f"Unknown AST node type: {type(node).__name__}")
 
 	def visitStatements(self, node: Statements):
 		for stmt in node.body:
@@ -237,11 +231,7 @@ class Compiler:
 				op = op_map.get(str(node.op.token_type), None)
 
 				if op is None:
-					error = Exception(f"Unsupported binary operation: {node.op}")
-					error.start_pos = node.start_pos
-					error.end_pos = node.end_pos
-					error.code = 2
-					raise error
+					self.raise_error(node, 2, f"Unsupported binary operation: {node.op}")
 
 				value = op.replace("D", f"{left}").replace("M", f"{right}")
 				result = eval(value)
@@ -319,11 +309,7 @@ class Compiler:
 		# Unable to fold
 		operation = op_map.get(str(node.op.token_type), None)
 		if not operation:
-			error = Exception(f"Unsupported binary operation: {node.op}")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 3
-			raise error
+			self.raise_error(node, 3, f"Unsupported binary operation: {node.op}")
 		
 		match operation[1:-1]:
 			case "*": # Shift-and-add algorithm
@@ -469,11 +455,7 @@ class Compiler:
 	def visitUnaryOperation(self, node: UnaryOperation):
 		if str(node.op.token_type) == "AND": # Address operator (&identifier)
 			if (not self.symbols.get(node.value.symbol, None)) or (self.symbols[node.value.symbol][0] == "const"):
-				error = Exception(f"Undefined variable: {node.value.symbol}")
-				error.start_pos = node.start_pos
-				error.end_pos = node.end_pos
-				error.code = 4
-				raise error
+				self.raise_error(node, 4, f"Undefined variable: {node.value.symbol}")
 			
 			self.load_immediate(self.symbols.get(node.value.symbol, (0, 0))[1])
 			self.instructions.append("COMP A D")
@@ -497,11 +479,7 @@ class Compiler:
 			elif str(node.op.token_type) == "SIGN": # Sign
 				folded_value = -1 if value < 0 else 0 if value == 0 else 1
 			else:
-				error = Exception(f"Unsupported unary operation: {node.op}")
-				error.start_pos = node.start_pos
-				error.end_pos = node.end_pos
-				error.code = 5
-				raise error
+				self.raise_error(node, 5, f"Unsupported unary operation: {node.op}")
 
 			# Append the folded value to instructions
 			if folded_value in self.known_values:
@@ -534,11 +512,7 @@ class Compiler:
 				elif str(node.op.token_type) == "SIGN":
 					result = -1 if value < 0 else 0 if value == 0 else 1
 				else:
-					error = Exception(f"Unsupported unary operation: {node.op}")
-					error.start_pos = node.start_pos
-					error.end_pos = node.end_pos
-					error.code = 6
-					raise error
+					self.raise_error(node, 5, f"Unsupported unary operation: {node.op}")
 				
 				self.instructions = self.instructions[:start_pos]
 
@@ -600,11 +574,7 @@ class Compiler:
 				]
 				self.instructions.append(f".end{end}")
 			else:
-				error = Exception(f"Unsupported unary operation: {node.op}")
-				error.start_pos = node.start_pos
-				error.end_pos = node.end_pos
-				error.code = 7
-				raise error
+				self.raise_error(node, 7, f"Unsupported unary operation: {node.op}")
 
 	def visitIntLiteral(self, node: IntLiteral):
 		if node.value in self.known_values: # Known values in the ISA
@@ -628,11 +598,7 @@ class Compiler:
 
 	def visitIdentifier(self, node: Identifier):
 		if node.symbol not in self.symbols.keys():
-			error = Exception(f"Undefined symbol: {node.symbol}")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 8
-			raise error
+			self.raise_error(node, 8, f"Undefined symbol: {node.symbol}")
 
 		# Load a symbol's value into the D register.
 		if self.symbols[node.symbol][0] == "const":
@@ -674,11 +640,7 @@ class Compiler:
 	def visitConstDefinition(self, node: ConstDefinition):
 		# Check if symbol is already defined
 		if node.symbol.symbol in self.symbols.keys():
-			error = Exception(f"Symbol {node.symbol.symbol} is already defined.")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 9
-			raise error
+			self.raise_error(node, 9, f"Symbol {node.symbol.symbol} is already defined.")
 		
 		start_pos = len(self.instructions)
 		temp_a_reg = self.a_reg
@@ -699,11 +661,7 @@ class Compiler:
 	def visitVarDeclaration(self, node: VarDeclaration):
 		# Check if symbol is already defined
 		if node.identifier in self.symbols.keys():
-			error = Exception(f"Symbol {node.identifier} is already defined.")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 10
-			raise error
+			self.raise_error(node, 10, f"Symbol {node.identifier} is already defined.")
 
 		if node.value:
 			value: int|None = self.generate_code(node.value)
@@ -749,11 +707,7 @@ class Compiler:
 			self.raise_error(node, 12, f"Cannot assign to constant '{node.identifier.symbol}'.")
 
 		if self.symbols[node.identifier.symbol][0] == "array":
-			error = Exception(f"Undefined variable: {node.identifier.symbol}.")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 13
-			raise error
+			self.raise_error(node, 13, f"Undefined variable: {node.identifier.symbol}.")
 		
 		addr = self.symbols[node.identifier.symbol][1]
 		
@@ -767,11 +721,7 @@ class Compiler:
 		# Check if identifier is a variable
 		if node.identifier not in self.symbols.keys() or\
 		self.symbols.get(node.identifier)[0] in ("const", "array", "subroutine"):
-			error = Exception(f"Variable {node.identifier} is not defined.")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 14
-			raise error
+			self.raise_error(node, 14, f"Variable {node.identifier} is not defined.")
 		
 		location = self.symbols[node.identifier][1]
 
@@ -829,29 +779,17 @@ class Compiler:
 
 	def visitArrayAccess(self, node: ArrayAccess):
 		if isinstance(node.array, Identifier) and (node.array.symbol not in self.symbols or self.symbols[node.array.symbol][0] != "array"):
-			error = Exception(f"Undefined array: {node.array.symbol}")
-			error.start_pos = node.array.start_pos
-			error.end_pos = node.array.end_pos
-			error.code = 15
-			raise error
+			self.raise_error(node, 15, f"Undefined array: {node.array.symbol}")
 		
 		if isinstance(node.array, ArrayLiteral):
 			base_pointer: int = self.generate_code(node.array)
 			self.generate_code(node.index)
 
 			if self.d_reg >= len(node.array.elements):
-				error = Exception(f"Out of bounds: index must not exceed {len(node.array.elements) - 1}, found index {self.d_reg} instead.")
-				error.start_pos = node.index.start_pos
-				error.end_pos = node.index.end_pos
-				error.code = 17
-				raise error
+				self.raise_error(node, 17, f"Out of bounds: index must not exceed {len(node.array.elements) - 1}, found index {self.d_reg} instead.")
 			
 			if self.d_reg < 0:
-				error = Exception(f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
-				error.start_pos = node.index.start_pos
-				error.end_pos = node.index.end_pos
-				error.code = 17
-				raise error
+				self.raise_error(node, 17, f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
 
 			self.load_immediate(base_pointer)
 			self.instructions.append("COMP D+A A")
@@ -865,18 +803,10 @@ class Compiler:
 			self.generate_code(node.index)
 			
 			if self.d_reg >= address - base_pointer:
-				error = Exception(f"Out of bounds: index must not exceed {address - base_pointer - 1}, found index {self.d_reg} instead.")
-				error.start_pos = node.index.start_pos
-				error.end_pos = node.index.end_pos
-				error.code = 17
-				raise error
+				self.raise_error(node, 17, f"Out of bounds: index must not exceed {address - base_pointer - 1}, found index {self.d_reg} instead.")
 			
 			if self.d_reg < 0:
-				error = Exception(f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
-				error.start_pos = node.index.start_pos
-				error.end_pos = node.index.end_pos
-				error.code = 17
-				raise error
+				self.raise_error(node, 17, f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
 			
 			self.load_immediate(base_pointer, "Access base pointer")
 			self.instructions.append("COMP D+A A")
@@ -886,29 +816,17 @@ class Compiler:
 
 	def visitArraySet(self, node: ArraySet):
 		if isinstance(node.array, Identifier) and (node.array.symbol not in self.symbols or self.symbols[node.array.symbol][0] != "array"):
-			error = Exception(f"Undefined array: {node.array.symbol}")
-			error.start_pos = node.array.start_pos
-			error.end_pos = node.array.end_pos
-			error.code = 16
-			raise error
+			self.raise_error(node, 16, f"Undefined array: {node.array.symbol}")
 		
 		if isinstance(node.array, ArrayLiteral):
 			base_pointer: int = self.generate_code(node.array)
 			self.generate_code(node.index)
 
 			if self.d_reg >= len(node.array.elements):
-				error = Exception(f"Out of bounds: index must not exceed {len(node.array.elements) - 1}, found index {self.d_reg} instead.")
-				error.start_pos = node.index.start_pos
-				error.end_pos = node.index.end_pos
-				error.code = 17
-				raise error
+				self.raise_error(node, 17, f"Out of bounds: index must not exceed {len(node.array.elements) - 1}, found index {self.d_reg} instead.")
 			
 			if self.d_reg < 0:
-				error = Exception(f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
-				error.start_pos = node.index.start_pos
-				error.end_pos = node.index.end_pos
-				error.code = 17
-				raise error
+				self.raise_error(node, 17, f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
 
 			self.load_immediate(base_pointer)
 			self.instructions.append("COMP D+A D")
@@ -930,18 +848,10 @@ class Compiler:
 			self.generate_code(node.index)
 			
 			if self.d_reg >= address - base_pointer:
-				error = Exception(f"Out of bounds: index must not exceed {address - base_pointer - 1}, found index {self.d_reg} instead.")
-				error.start_pos = node.index.start_pos
-				error.end_pos = node.index.end_pos
-				error.code = 17
-				raise error
+				self.raise_error(node, 17, f"Out of bounds: index must not exceed {address - base_pointer - 1}, found index {self.d_reg} instead.")
 			
 			if self.d_reg < 0:
-				error = Exception(f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
-				error.start_pos = node.index.start_pos
-				error.end_pos = node.index.end_pos
-				error.code = 17
-				raise error
+				self.raise_error(node, 17, f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
 			
 			self.load_immediate(base_pointer, "Base pointer")
 			self.instructions.append("COMP D+A D")
@@ -979,11 +889,7 @@ class Compiler:
 	def visitSubroutineDef(self, node: SubroutineDef):
 		# Check if symbol is already defined
 		if node.name in self.symbols.keys():
-			error = Exception(f"Symbol {node.name} is already defined.")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 10
-			raise error
+			self.raise_error(node, 10, f"Symbol {node.name} is already defined.")
 
 		# Allocate memory for parameters
 		for param in node.parameters:
@@ -1005,19 +911,11 @@ class Compiler:
 	def visitCallExpression(self, node: CallExpression):
 		# Check if symbol is already defined
 		if node.sub_name not in self.symbols.keys():
-			error = Exception(f"Symbol {node.sub_name} is undefined.")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 10
-			raise error
+			self.raise_error(node, 10, f"Symbol {node.name} is undefined.")
 		
 		# Check if symbol is a subroutine
 		if self.symbols[node.sub_name][0] not in ("subroutine", "nativesub"):
-			error = Exception(f"Symbol {node.sub_name} is not a subroutine.")
-			error.start_pos = node.start_pos
-			error.end_pos = node.end_pos
-			error.code = 18
-			raise error
+			self.raise_error(node, 18, f"Symbol {node.sub_name} is not a subroutine.")
 		
 		if self.symbols[node.sub_name][0] == "subroutine":
 			# Check number of arguments
