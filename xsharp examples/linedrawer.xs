@@ -1,6 +1,6 @@
 // Bresenham's line drawing algorithm!
 const x1 5
-const y1 10
+const y1 5
 const x2 30
 const y2 21
 var x: int = x1
@@ -24,7 +24,7 @@ var e: int = a - dx
 var b: int = e - dx
 var i: int
 
-plot x y 1
+plot(x, y, 1)
 
 for i start: 0 end: dx step: 1 {
 	if e < 0 {
@@ -39,6 +39,6 @@ for i start: 0 end: dx step: 1 {
 		x = x + s1
 		e = e + b
 	}
-	plot x y 1
+	plot(x, y, 1)
 	update()
 }
