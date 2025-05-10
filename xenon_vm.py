@@ -1,17 +1,17 @@
 from PyQt6.QtWidgets import QMainWindow, QApplication, QLabel, QPushButton, QFileDialog, QSlider
-from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor
-from PyQt6.QtCore import QRegularExpression, QTimer
+from PyQt6.QtGui import QColor
+from PyQt6.QtCore import QTimer
 from PyQt6 import uic
 
 from xsharp_compiler import Compiler
+from xsharp_helper import SyntaxHighlighter
 from screen_writer import write_screen
 
 MAX_INSTRUCTIONS = 2 ** 12
 
-class BinSyntaxHighlighter(QSyntaxHighlighter):
+class BinSyntaxHighlighter(SyntaxHighlighter):
 	def __init__(self, document):
 		super().__init__(document)
-		self.highlighting_rules: list[tuple[QRegularExpression, QTextCharFormat]] = []
 
 		self.create_format("comp_inst", QColor(120, 174, 255))
 		self.create_format("load_inst", QColor(255, 170, 0))
@@ -26,27 +26,6 @@ class BinSyntaxHighlighter(QSyntaxHighlighter):
 		self.add_rule(r"\b\d{12}0101$\b", "plot_inst_off")
 		self.add_rule(r"\b\d{13}001\b", "buffer_inst")
 		self.add_rule(r"\b0000000000000100\b", "halt_inst")
-
-	def create_format(self, name: str, color: QColor, bold: bool = False, italic: bool = False):
-		fmt = QTextCharFormat()
-		fmt.setForeground(color)
-		if bold: fmt.setFontWeight(QFont.Weight.Bold)
-		if italic: fmt.setFontItalic(True)
-
-		setattr(self, f"{name}_format", fmt)
-	
-	def get_format(self, name: str):
-		return getattr(self, f"{name}_format")
-	
-	def add_rule(self, pattern: str, format_name: str):
-		self.highlighting_rules.append((QRegularExpression(pattern), self.get_format(format_name)))
-	
-	def highlightBlock(self, text: str):
-		for _pattern, _format in self.highlighting_rules:
-			match_iterator = _pattern.globalMatch(text)  # Get the match iterator
-			while match_iterator.hasNext():  # Use hasNext() and next()
-				_match = match_iterator.next()
-				self.setFormat(_match.capturedStart(), _match.capturedLength(), _format)
 
 class VirtualMachine(QMainWindow):
 	def __init__(self):
