@@ -1,8 +1,9 @@
 from PyQt6.QtWidgets import QMainWindow, QApplication, QFileDialog
-from PyQt6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QColor, QIcon, QPixmap
-from PyQt6.QtCore import QRegularExpression
+from PyQt6.QtGui import QColor, QIcon, QPixmap
 from PyQt6 import uic
+
 from xenon_vm import BinSyntaxHighlighter
+from xsharp_helper import SyntaxHighlighter
 
 # Lookup table for codes
 # Format: A? NotD ZeroD And|Add NotOutPut ZeroA|M NotA|M DC|RShift
@@ -151,10 +152,9 @@ def assemble(ftxt: str):
 	except ValueError as e: return e
 	except NotImplementedError as e: return e
 
-class ASMSyntaxHighlighter(QSyntaxHighlighter):
+class ASMSyntaxHighlighter(SyntaxHighlighter):
 	def __init__(self, document):
 		super().__init__(document)
-		self.highlighting_rules: list[tuple[QRegularExpression, QTextCharFormat]] = []
 
 		self.create_format("instruction", QColor(213, 117, 157), bold=True)
 		self.create_format("jump", QColor(204, 152, 13), bold=True)
@@ -173,29 +173,8 @@ class ASMSyntaxHighlighter(QSyntaxHighlighter):
 		self.add_rule(r"\b\d+(\.\d+)?\b", "number")
 		self.add_rule(r"(\+|-|&|\||~|\^|>>)", "operation")
 		self.add_rule(r"(?<!\S)\.\w+", "label")
-		self.add_rule(r"\b(move|append|update|stamp)\b", "parameter")
+		self.add_rule(r"\b(move|append)\b", "parameter")
 		self.add_rule(r"//[^\n]*", "comment")
-
-	def create_format(self, name: str, color: QColor, bold: bool = False, italic: bool = False):
-		fmt = QTextCharFormat()
-		fmt.setForeground(color)
-		if bold: fmt.setFontWeight(QFont.Weight.Bold)
-		if italic: fmt.setFontItalic(True)
-
-		setattr(self, f"{name}_format", fmt)
-	
-	def get_format(self, name: str):
-		return getattr(self, f"{name}_format")
-	
-	def add_rule(self, pattern: str, format_name: str):
-		self.highlighting_rules.append((QRegularExpression(pattern), self.get_format(format_name)))
-	
-	def highlightBlock(self, text: str):
-		for _pattern, _format in self.highlighting_rules:
-			match_iterator = _pattern.globalMatch(text)  # Get the match iterator
-			while match_iterator.hasNext():  # Use hasNext() and next()
-				_match = match_iterator.next()
-				self.setFormat(_match.capturedStart(), _match.capturedLength(), _format)
 
 class XAsmAssembler(QMainWindow):
 	def __init__(self):
