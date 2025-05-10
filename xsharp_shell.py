@@ -7,6 +7,7 @@ from xsharp_lexer import Lexer, KEYWORDS, DATA_TYPES
 from xsharp_parser import Parser
 from xsharp_compiler import Compiler
 from xasm_assembler import ASMSyntaxHighlighter
+from xsharp_helper import SyntaxHighlighter
 
 def xs_compile(fn: str, ftxt: str, remove_that_one_line: bool = False):
 	lexer = Lexer(fn, ftxt)
@@ -21,35 +22,6 @@ def xs_compile(fn: str, ftxt: str, remove_that_one_line: bool = False):
 	res = compiler.compile(ast.node, remove_that_one_line)
 	return res.value, res.error
 
-class SyntaxHighlighter(QSyntaxHighlighter):
-	def __init__(self, document):
-		super().__init__(document)
-		self.highlighting_rules: list[tuple[QRegularExpression, QTextCharFormat]] = []
-
-	def create_format(self, name: str, color: QColor, bold: bool = False, italic: bool = False):
-		fmt = QTextCharFormat()
-		fmt.setForeground(color)
-		if bold: fmt.setFontWeight(QFont.Weight.Bold)
-		if italic: fmt.setFontItalic(True)
-
-		setattr(self, f"{name}_format", fmt)
-	
-	def get_format(self, name: str):
-		return getattr(self, f"{name}_format")
-	
-	def add_rule(self, pattern: str, fmt_name: str, dot_matches_everything: bool = False):
-		regex = QRegularExpression(pattern)
-		if dot_matches_everything:
-			regex.setPatternOptions(QRegularExpression.PatternOption.DotMatchesEverythingOption)
-		self.highlighting_rules.append((regex, self.get_format(fmt_name)))
-	
-	def highlightBlock(self, text: str):
-		for _pattern, _format in self.highlighting_rules:
-			match_iterator = _pattern.globalMatch(text)  # Get the match iterator
-			while match_iterator.hasNext():  # Use hasNext() and next()
-				_match = match_iterator.next()
-				self.setFormat(_match.capturedStart(), _match.capturedLength(), _format)
-
 class XSharpSyntaxHighlighter(SyntaxHighlighter):
 	def __init__(self, document):
 		super().__init__(document)
@@ -62,13 +34,17 @@ class XSharpSyntaxHighlighter(SyntaxHighlighter):
 		self.create_format("comment", QColor(98, 133, 139), italic=True)
 		self.create_format("number", QColor(85, 91, 239))
 		self.create_format("constant", QColor(204, 152, 0), bold=True)
+		self.create_format("subroutine", QColor(70, 163, 183))
+		self.create_format("nativesub", QColor(110, 214, 234))
 
+		self.add_rule(r"\b\d+(\.\d+)?\b", "number")
+		self.add_rule(r"\b(true|false|N_BITS)\b", "number")
+		self.add_rule(r"\b[a-zA-Z_][a-zA-Z0-9_]*\s*(?=\()", "subroutine")
 		self.add_rule(r"\b" + r"\b|\b".join(KEYWORDS) + r"\b", "keyword")
+		self.add_rule(r"\b(update|flip|halt|plot)\b", "nativesub")
 		self.add_rule(r"\b(start|end|step)\b", "keyword2")
 		self.add_rule(r"\b" + r"\b|\b".join(DATA_TYPES) + r"\b", "keyword2")
-		self.add_rule(r"\b\d+(\.\d+)?\b", "number")
-		self.add_rule(r"(\+|-|\*|&|\||~|\^|=|:)", "operation")
-		self.add_rule(r"\b(true|false)\b", "number")
+		self.add_rule(r"(\+|-|\*|&|\||~|\^|=|:|<|>|<=|>=|!=|==|<<|>>)", "operation")
 		self.add_rule(r"(?<=include )[^\n\r]+", "library")
 		self.add_rule(r"\(|\)|\{|\}|\[|\]", "brackets")
 		self.add_rule(r"//.*", "comment")
@@ -168,8 +144,6 @@ class XSharpShell(QMainWindow):
 		uic.loadUi("GUI/shell.ui", self)
 		self.setWindowTitle("X# Compiler")
 
-		self.words = ["true", "false"] + KEYWORDS + DATA_TYPES
-
 		self.load_file_button.clicked.connect(self.load_file)
 		self.fn = ""
 
@@ -202,6 +176,7 @@ class XSharpShell(QMainWindow):
 		code_cursor: QTextCursor = self.file_text.textCursor()
 		cursor_pos: int = code_cursor.position()
 		code: str = self.file_text.toPlainText()
+		self.xsharp_text_highlighter.highlightBlock(self.file_text.toPlainText())
 
 		if source == self.file_text:
 			self.ftxt_line_count.setText(
@@ -217,12 +192,12 @@ class XSharpShell(QMainWindow):
 				result[i] = result[i].strip()
 			
 			if "include operations" in result:
-				self.xsharp_text_highlighter.highlighting_rules[4] = (QRegularExpression(
-					r"(\+|-|\*|&|\||~|\^|=|:)"
+				self.xsharp_text_highlighter.highlighting_rules[7] = (QRegularExpression(
+					r"(\+|-|\*|/|&|\||~|\^|=|:|#|\$)"
 				), getattr(self.xsharp_text_highlighter, "operation_format"))
 			else:
-				self.xsharp_text_highlighter.highlighting_rules[4] = (QRegularExpression(
-					r"(\+|-|&|\||~|\^|=|:)"
+				self.xsharp_text_highlighter.highlighting_rules[7] = (QRegularExpression(
+					r"(\+|-|&|\||~|\^|=|:|#|\$)"
 				), getattr(self.xsharp_text_highlighter, "operation_format"))
 		
 		if source == self.file_text and event.type() == QEvent.Type.KeyPress:
@@ -334,8 +309,6 @@ class XSharpShell(QMainWindow):
 					return True
 				return super().eventFilter(source, event)
 		
-		# Rehighlight
-		self.xsharp_text_highlighter.highlightBlock(self.file_text.toPlainText())
 		if source == self.result:
 			self.result_line_count.setText(
 				f"Line count: {len(self.result.toPlainText().splitlines())}"
@@ -346,6 +319,7 @@ class XSharpShell(QMainWindow):
 	def compile(self):
 		self.error.setText("")
 		self.result.setText("")
+		
 		result, error = xs_compile("<shell>", self.file_text.toPlainText().strip())
 		if error:
 			self.error.setText(f"{error}")
@@ -356,6 +330,8 @@ class XSharpShell(QMainWindow):
 			if self.file_name.text():
 				with open(f"assembly/{self.file_name.text().replace('.xs', '.xasm')}", "w") as f:
 					f.write(assembly)
+				with open(f"programs/{self.file_name.text()}", "w") as f:
+					f.write(self.file_text.toPlainText())
 				self.fn = ""
 
 if __name__ == "__main__":
