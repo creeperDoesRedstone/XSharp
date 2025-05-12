@@ -663,18 +663,25 @@ class Compiler:
 		if node.identifier in self.symbols.keys():
 			self.raise_error(node, 10, f"Symbol {node.identifier} is already defined.")
 
+		value: int|None = None
 		if node.value:
-			value: int|None = self.generate_code(node.value)
+			value = self.generate_code(node.value)
 		memory_location: int = 16 + self.vars
+		temp_location: int|None = None
 
 		if node.length is not None:
-			if node.length != len(node.value.elements):
-				self.raise_error(node, 11, f"Expected array length {len(node.value.elements)}, got {node.length} instead.")
+			if node.value is None:
+				self.vars += node.length
+				temp_location = memory_location
+				memory_location: int = 16 + self.vars
+			else:
+				if node.length != len(node.value.elements):
+					self.raise_error(node, 11, f"Expected array length {len(node.value.elements)}, got {node.length} instead.")
 
 			self.symbols[node.identifier] = ("array", memory_location)
-			self.memory[memory_location] = value
+			self.memory[memory_location] = value or temp_location
 			value: int
-			self.load_immediate(value, f"array_{node.identifier}")
+			self.load_immediate(value or temp_location, f"array_{node.identifier}")
 			self.instructions.append("COMP A D") # Load base pointer
 			self.d_reg = self.a_reg
 		else:
@@ -690,10 +697,10 @@ class Compiler:
 		if node.length is not None:
 			comment += f" ({node.length} elements)"
 
-		if node.value:
-			self.load_immediate(memory_location, comment)
-			self.instructions.append("COMP D M") # Store result in D register to memory
-			self.memory[memory_location] = self.d_reg
+
+		self.load_immediate(memory_location, comment)
+		self.instructions.append("COMP D M") # Store result in D register to memory
+		self.memory[memory_location] = self.d_reg
 		
 		self.vars += 1
 
@@ -729,8 +736,8 @@ class Compiler:
 			end = self.generate_code(node.end)			
 			self.d_reg = end
 			self.load_immediate(location, f"End value <- {node.identifier}")
-			self.instructions += ["COMP D M"]
-			self.memory[location] = self.d_reg
+			self.instructions += ["COMP D-- M"]
+			self.memory[location] = self.d_reg - 1
 			return
 
 		# Set iterator to start value
