@@ -315,11 +315,6 @@ class Parser:
 		expr = None
 		if self.current_token.token_type != TT.ASSIGN:
 			end_pos = self.current_token.end_pos
-			if length:
-				return res.fail(InvalidSyntax(
-					self.current_token.start_pos, self.current_token.end_pos,
-					"Expected '=' after array declaration."
-				))
 			if self.current_token.token_type not in (TT.NEWLINE, TT.EOF):
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
