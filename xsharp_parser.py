@@ -80,7 +80,7 @@ class ConstDefinition:
 		return f"ConstDef[{self.symbol} -> {self.value}]"
 
 class VarDeclaration:
-	def __init__(self, identifier: str, value, data_type: str, start_pos: Position, end_pos: Position, length: int|None):
+	def __init__(self, identifier: str, value, data_type: str, start_pos: Position, end_pos: Position, length: int|str|None):
 		self.start_pos = start_pos
 		self.end_pos = end_pos
 		self.identifier = identifier
@@ -297,10 +297,10 @@ class Parser:
 		if self.current_token.token_type == TT.LSQ: # Array
 			self.advance()
 			
-			if self.current_token.token_type != TT.NUM:
+			if self.current_token.token_type not in (TT.NUM, TT.IDENTIFIER):
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
-					"Expected a number for the array length."
+					"Expected a number or constant for the array length."
 				))
 			length = self.current_token.value
 			self.advance()
@@ -696,7 +696,7 @@ class Parser:
 			return res.success(ArrayAccess(literal, index, end_pos))
 
 		return res.success(literal)
-	
+
 	def call(self):
 		res = ParseResult()
 
