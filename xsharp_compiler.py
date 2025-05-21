@@ -668,10 +668,20 @@ class Compiler:
 			value = self.generate_code(node.value)
 		memory_location: int = 16 + self.vars
 		temp_location: int|None = None
+		length = node.length
 
 		if node.length is not None:
+			if isinstance(node.length, str): # Constant
+				if node.length not in self.symbols.keys():
+					self.raise_error(node, 8, f"Undefined symbol: {node.length}")
+				
+				if self.symbols[node.length][0] != "const":
+					self.raise_error(node, 21, "Expected a constant, got an identifier instead.")
+				
+			length = self.symbols[node.length][1]
+			
 			if node.value is None:
-				self.vars += node.length
+				self.vars += length
 				temp_location = memory_location
 				memory_location: int = 16 + self.vars
 			else:
@@ -695,7 +705,9 @@ class Compiler:
 		
 		comment = node.identifier
 		if node.length is not None:
-			comment += f" ({node.length} elements)"
+			comment += f" ({node.length}"
+			if node.length != length: comment += f" = {length}"
+			comment += " elements)"
 
 
 		self.load_immediate(memory_location, comment)
