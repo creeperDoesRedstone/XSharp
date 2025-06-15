@@ -637,16 +637,16 @@ class Parser:
 	def unary(self):
 		res = ParseResult()
 
-		if self.current_token.token_type in (TT.ADD, TT.SUB, TT.NOT, TT.AND, TT.ABS, TT.SIGN):
+		if self.current_token.token_type in (TT.ADD, TT.SUB, TT.NOT, TT.AT, TT.ABS, TT.SIGN):
 			tok = self.current_token
 			self.advance()
 			value = res.register(self.unary())
 			if res.error: return res
 
-			if tok.token_type == TT.AND and not isinstance(value, Identifier): # Address operator
+			if tok.token_type == TT.AT and not isinstance(value, Identifier): # Address operator
 				return res.fail(InvalidSyntax(
 					tok.start_pos, tok.end_pos,
-					"Expected an identifier after '&'."
+					"Expected an identifier after '@'."
 				))
 
 			return res.success(UnaryOperation(tok, value))
@@ -757,7 +757,7 @@ class Parser:
 			expr.in_parentheses = True
 			return res.success(expr)
 
-		if tok.token_type == TT.LBR:
+		if tok.token_type == TT.LSQ:
 			elements = []
 			
 			# First element
@@ -771,7 +771,7 @@ class Parser:
 				if res.error: return res
 				elements.append(expr)
 			
-			if self.current_token.token_type != TT.RBR:
+			if self.current_token.token_type != TT.RSQ:
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
 					"Expected ',' or '}' after array elements."
@@ -781,5 +781,4 @@ class Parser:
 			self.advance()
 			return res.success(ArrayLiteral(elements, tok.start_pos, end_token.end_pos))
 
-		LBR = "{"
-		return res.fail(InvalidSyntax(tok.start_pos, tok.end_pos, f"Expected a number, an identifier, '(' or '{LBR}', found token '{tok.token_type}' instead."))
+		return res.fail(InvalidSyntax(tok.start_pos, tok.end_pos, f"Expected a number, an identifier, '(' or '[', found token '{tok.token_type}' instead."))
