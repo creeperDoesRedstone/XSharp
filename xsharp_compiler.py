@@ -678,7 +678,7 @@ class Compiler:
 				if self.symbols[node.length][0] != "const":
 					self.raise_error(node, 21, "Expected a constant, got an identifier instead.")
 				
-			length = self.symbols[node.length][1]
+			length = self.symbols.get(node.length, node.length)
 			
 			if node.value is None:
 				self.vars += length
