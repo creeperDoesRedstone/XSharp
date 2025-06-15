@@ -453,7 +453,7 @@ class Compiler:
 		self.free_register(reg2)
 
 	def visitUnaryOperation(self, node: UnaryOperation):
-		if str(node.op.token_type) == "AND": # Address operator (&identifier)
+		if str(node.op.token_type) == "AT": # Address operator (@identifier)
 			if (not self.symbols.get(node.value.symbol, None)) or (self.symbols[node.value.symbol][0] == "const"):
 				self.raise_error(node, 4, f"Undefined variable: {node.value.symbol}")
 			
@@ -866,12 +866,6 @@ class Compiler:
 
 			self.generate_code(node.index)
 			
-			if self.d_reg >= address - base_pointer:
-				self.raise_error(node, 17, f"Out of bounds: index must not exceed {address - base_pointer - 1}, found index {self.d_reg} instead.")
-			
-			if self.d_reg < 0:
-				self.raise_error(node, 17, f"Out of bounds: index must be at least 0, found index {self.d_reg} instead.")
-			
 			self.load_immediate(base_pointer, "Base pointer")
 			self.instructions.append("COMP D+A D")
 			self.d_reg += self.a_reg
@@ -930,7 +924,7 @@ class Compiler:
 	def visitCallExpression(self, node: CallExpression):
 		# Check if symbol is already defined
 		if node.sub_name not in self.symbols.keys():
-			self.raise_error(node, 10, f"Symbol {node.name} is undefined.")
+			self.raise_error(node, 10, f"Symbol {node.sub_name} is undefined.")
 		
 		# Check if symbol is a subroutine
 		if self.symbols[node.sub_name][0] not in ("subroutine", "nativesub"):
