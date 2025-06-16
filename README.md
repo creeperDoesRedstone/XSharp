@@ -44,10 +44,10 @@ $value           // Sign of value (-1 if negative, 0 if zero, 1 if positive)
 - `bool[]`: Represents an array of booleans.
 
 ### `Array literals`
-Array literals are elements encased in braces:
+Array literals are elements encased in square brackets:
 ```js
-{1, 2, 3}
-{1, 2, i} // Valid, assuming i is defined beforehand
+[1, 2, 3]
+[1, 2, i] // Valid, assuming i is defined beforehand
 ```
 
 ### `Variables and constants`
@@ -69,9 +69,9 @@ Unlike constants, variables can be changed using the `=` operator:
 ```js
 identifier = expression
 ```
-The memory address of a variable can be accessed using the `&` operator:
+The memory address of a variable can be accessed using the `@` operator:
 ```js
-&identifier
+@identifier
 ```
 
 ### `Loops`
