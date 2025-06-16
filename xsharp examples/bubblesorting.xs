@@ -1,5 +1,5 @@
 const length 10
-var array: int[10] = {7, 2, 1, 6, 10, 9, 4, 3, 8, 5}
+var array: int[10] = [7, 2, 1, 6, 10, 9, 4, 3, 8, 5]
 var i: int
 var j: int
 var temp: int
