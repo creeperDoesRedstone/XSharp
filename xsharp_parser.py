@@ -108,6 +108,18 @@ class ForLoop:
 		self.step = step
 		self.body = body
 
+class CForLoop:
+	def __init__(self, start_pos: Position, end_pos: Position, identifier: str, start: Any, end_op: Token, end: Any, step_op: Token, step: Any, body: Statements):
+		self.start_pos = start_pos
+		self.end_pos = end_pos
+		self.identifier = identifier
+		self.start = start
+		self.end = end
+		self.end_op = end_op
+		self.step = step
+		self.step_op = step_op
+		self.body = body
+
 class WhileLoop:
 	def __init__(self, start_pos: Position, end_pos: Position, condition, body: Statements):
 		self.start_pos = start_pos
@@ -340,78 +352,181 @@ class Parser:
 		start_pos = self.current_token.start_pos
 		self.advance()
 
-		if self.current_token.token_type != TT.IDENTIFIER:
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected an identifier after 'for' keyword."
-			))
-		identifier = self.current_token.value
-		self.advance()
+		if self.current_token.token_type == TT.IDENTIFIER:
+			identifier = self.current_token.value
+			self.advance()
 
-		if self.current_token != Token(None, None, TT.KEYWORD, "start"):
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected 'start' keyword after iterator."
-			))
-		self.advance()
-		if self.current_token.token_type != TT.COL:
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected ':' after 'start' keyword."
-			))
-		self.advance()
-		start = res.register(self.comparison())
-		if res.error: return res
+			if self.current_token != Token(None, None, TT.KEYWORD, "start"):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected 'start' keyword after iterator."
+				))
+			self.advance()
+			if self.current_token.token_type != TT.COL:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected ':' after 'start' keyword."
+				))
+			self.advance()
+			start = res.register(self.comparison())
+			if res.error: return res
 
-		if self.current_token != Token(None, None, TT.KEYWORD, "end"):
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected 'end' keyword after start value."
-			))
-		self.advance()
-		if self.current_token.token_type != TT.COL:
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected ':' after 'end' keyword."
-			))
-		self.advance()
-		end = res.register(self.comparison())
-		if res.error: return res
+			if self.current_token != Token(None, None, TT.KEYWORD, "end"):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected 'end' keyword after start value."
+				))
+			self.advance()
+			if self.current_token.token_type != TT.COL:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected ':' after 'end' keyword."
+				))
+			self.advance()
+			end = res.register(self.comparison())
+			if res.error: return res
 
-		if self.current_token != Token(None, None, TT.KEYWORD, "step"):
+			if self.current_token != Token(None, None, TT.KEYWORD, "step"):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected 'step' keyword after iterator."
+				))
+			self.advance()
+			if self.current_token.token_type != TT.COL:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected ':' after 'step' keyword."
+				))
+			self.advance()
+			step = res.register(self.comparison())
+			if res.error: return res
+
+			if self.current_token.token_type != TT.LBR:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '{' before for loop body."
+				))
+			self.advance()
+
+			body = res.register(self.statements(end=(TT.EOF, TT.RBR)))
+			if res.error: return res
+
+			if self.current_token.token_type != TT.RBR:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '}' after for loop body."
+				))
+			end_pos = self.current_token.end_pos
+			self.advance()
+
+			return res.success(ForLoop(start_pos, end_pos, identifier, start, end, step, body))
+		elif self.current_token.token_type == TT.LPR:
+			self.advance()
+			if self.current_token.token_type != TT.IDENTIFIER:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected an identifier after '(' (after 'for' keyword)."
+				))
+			identifier = self.current_token.value
+			self.advance()
+
+			if self.current_token.token_type != TT.ASSIGN:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '=' after iterator."
+				))
+			self.advance()
+
+			start = res.register(self.comparison())
+			if res.error: return res
+
+			if self.current_token != Token(None, None, TT.NEWLINE, ";"):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected ';' after start value."
+				))
+			self.advance()
+
+			if self.current_token != Token(None, None, TT.IDENTIFIER, identifier):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					f"Expected '{identifier}'."
+				))
+			self.advance()
+
+			if self.current_token.token_type not in (TT.LT, TT.LE, TT.GT, TT.GE):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '<', '>', '<=', or '>='."
+				))
+			end_op = self.current_token
+			self.advance()
+
+			end = res.register(self.comparison())
+			if res.error: return res
+
+			if self.current_token != Token(None, None, TT.NEWLINE, ";"):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected ';' after start value."
+				))
+			self.advance()
+
+			if self.current_token != Token(None, None, TT.IDENTIFIER, identifier):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					f"Expected '{identifier}'."
+				))
+			self.advance()
+
+			if self.current_token.token_type not in (TT.ADD, TT.SUB):
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '+' or '-'."
+				))
+			step_op = self.current_token
+			self.advance()
+			if self.current_token.token_type != TT.ASSIGN:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '='."
+				))
+			self.advance()
+
+			step = res.register(self.comparison())
+			if res.error: return res
+
+			if self.current_token.token_type != TT.RPR:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '}' after step value."
+				))
+			self.advance()
+
+			if self.current_token.token_type != TT.LBR:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '{' before for loop body."
+				))
+			self.advance()
+
+			body = res.register(self.statements(end=(TT.EOF, TT.RBR)))
+			if res.error: return res
+
+			if self.current_token.token_type != TT.RBR:
+				return res.fail(InvalidSyntax(
+					self.current_token.start_pos, self.current_token.end_pos,
+					"Expected '}' after for loop body."
+				))
+			end_pos = self.current_token.end_pos
+			self.advance()
+
+			return res.success(CForLoop(start_pos, end_pos, identifier, start, end_op, end, step_op, step, body))
+		else:
 			return res.fail(InvalidSyntax(
 				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected 'step' keyword after iterator."
+				"Expected an identifier or '(' after 'for' keyword."
 			))
-		self.advance()
-		if self.current_token.token_type != TT.COL:
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected ':' after 'step' keyword."
-			))
-		self.advance()
-		step = res.register(self.comparison())
-		if res.error: return res
-
-		if self.current_token.token_type != TT.LBR:
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected '{' before for loop body."
-			))
-		self.advance()
-
-		body = res.register(self.statements(end=(TT.EOF, TT.RBR)))
-		if res.error: return res
-
-		if self.current_token.token_type != TT.RBR:
-			return res.fail(InvalidSyntax(
-				self.current_token.start_pos, self.current_token.end_pos,
-				"Expected '}' after for loop body."
-			))
-		end_pos = self.current_token.end_pos
-		self.advance()
-
-		return res.success(ForLoop(start_pos, end_pos, identifier, start, end, step, body))
 
 	def while_loop(self):
 		res = ParseResult()
