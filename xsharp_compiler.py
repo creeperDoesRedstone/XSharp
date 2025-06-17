@@ -986,3 +986,44 @@ class Compiler:
 					self.instructions.append(f"PLOT {node.arguments[2].value}")
 
 					self.plotted = True
+
+	def visitCForLoop(self, node: CForLoop):
+		if node.identifier not in self.symbols.keys() or\
+		self.symbols.get(node.identifier)[0] in ("const", "array", "subroutine"):
+			self.raise_error(node, 14, f"Variable {node.identifier} is not defined.")
+		
+		location = self.symbols[node.identifier][1]
+		self.generate_code(node.start)
+		self.load_immediate(location, f"Start value <- {node.identifier}")
+		self.instructions += ["COMP D M"]
+		
+		self.memory[location] = self.d_reg
+		jump: int = self.make_jump_label(name="for")
+
+		self.generate_code(node.body)
+
+		self.generate_code(node.step)
+		self.instructions[-1] += f" // Step value (.for{jump})"
+		step_value: int = self.d_reg
+
+		self.load_immediate(location, f"{node.identifier}")
+		self.instructions.append("COMP D+M DM" if node.step_op.token_type == TT.ADD else "COMP D-M DM")
+		self.d_reg += self.memory[location]
+
+		self.generate_code(node.end)
+		self.instructions[-1] += f" // End value (.for{jump})"
+		self.load_immediate(location, f"{node.identifier}")
+		self.instructions.append("COMP D-M D")
+		self.d_reg -= self.memory[location]
+
+		self.load_immediate(f".for{jump}", f"Jump to start (.for{jump})")
+
+		jump_type = ""
+		match node.end_op.token_type:
+			case TT.LT: jump_type = "JGT"
+			case TT.LE: jump_type = "JGE"
+			case TT.GT: jump_type = "JLT"
+			case TT.GE: jump_type = "JLE"
+
+		self.instructions.append(f"COMP D {jump_type}")
+		self.a_reg = self.jumps_dict[jump]
