@@ -74,13 +74,25 @@ The memory address of a variable can be accessed using the `@` operator:
 @identifier
 ```
 
-### `Loops`
-For loops have `start`, `end`, and `step` values.
+### `For oops`
+Originally, for loops had `start`, `end`, and `step` values.
 
 Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
+
+This for loop is deprecated and will be removed in future versions.
 ```lua
-for identifier start: expr end: expr step: expr { <body> }
+for identifier start: expr end: expr step: expr {
+    <body>
+}
 ```
+The new for loops followed C-style syntax:
+```lua
+for (identifier = start; identifier (<|>|<=|>=) end; identifier (+|-)= step) {
+    <body>
+}
+```
+
+### `While loops`
 While loops will execute until the value of `condition` is 0:
 ```lua
 while condition { <body> }
