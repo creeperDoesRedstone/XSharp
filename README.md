@@ -74,7 +74,7 @@ The memory address of a variable can be accessed using the `@` operator:
 @identifier
 ```
 
-### `For oops`
+### `For loops`
 Originally, for loops had `start`, `end`, and `step` values.
 
 Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
