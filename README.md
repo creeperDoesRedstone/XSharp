@@ -85,7 +85,7 @@ for identifier start: expr end: expr step: expr {
     <body>
 }
 ```
-The new for loops followed C-style syntax:
+The new for loops followe a C-style syntax:
 ```lua
 for (identifier = start; identifier (<|>|<=|>=) end; identifier (+|-)= step) {
     <body>
