@@ -22,9 +22,10 @@ class CompileResult:
 		return self
 
 class Compiler:
-	X_ADDR = 2048
-	Y_ADDR = 2049
-	INPUT_ADDR = 2050
+	MAX_RAM_ADDR = 2047
+	X_ADDR = MAX_RAM_ADDR + 1
+	Y_ADDR = MAX_RAM_ADDR + 2
+	INPUT_ADDR = MAX_RAM_ADDR + 3
 
 	def __init__(self):
 		self.instructions: list[str] = []
