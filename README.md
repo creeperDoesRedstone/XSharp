@@ -56,7 +56,11 @@ Constants are defined using the `const` keyword:
 const identifier value
 ```
 From that point, the compiler will replace all instances of the constant with its defined value.
-There are 2 built-in constants: `true` (-1) and `false` (0).
+
+There are 3 built-in constants:
+- `true: -1`
+- `false: 0`
+- `N_BITS: 16` (since Xenon is a 16-bit computer) 
 
 Variables are defined using the `var` keyword:
 ```js
@@ -79,13 +83,13 @@ Originally, for loops had `start`, `end`, and `step` values.
 
 Their range is `[start, end)`, meaning they loop from `start` to `end - 1`.
 
-This for loop is deprecated and will be removed in future versions.
+This for loop is deprecated and has been removed.
 ```lua
 for identifier start: expr end: expr step: expr {
     <body>
 }
 ```
-The new for loops followe a C-style syntax:
+The new for loops follow a C-style syntax:
 ```lua
 for (identifier = start; identifier (<|>|<=|>=) end; identifier (+|-)= step) {
     <body>
@@ -181,7 +185,7 @@ This instruction computes the given operation. Valid operations can be found in 
 
 If specified, it can store the result in the `Data` register, the `Address` register, and the RAM location pointed by the `Address` register.
 
-It can also perform a branch if specified and matches the result.
+It can also perform a branch if specified and the result matches.
 ```
 COMP operation dest? jump?
 ```
