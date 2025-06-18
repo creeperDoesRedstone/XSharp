@@ -1,3 +1,4 @@
+from xsharp_lexer import Lexer
 from xsharp_parser import *
 from xsharp_helper import CompilationError
 from typing import Literal
@@ -317,7 +318,7 @@ class Compiler:
 				product = tuple(self.available_registers - self.allocated_registers)[0]
 				self.allocate_register(product)
 
-				self.load_immediate(16)
+				self.load_immediate(16) # Number of bits
 				self.instructions.append("COMP A D")
 				bits = tuple(self.available_registers - self.allocated_registers)[0]
 				self.allocate_register(bits)
@@ -736,50 +737,6 @@ class Compiler:
 		] # Store result in D register to memory
 		self.d_reg = self.memory.get(addr, 0)
 
-	def visitForLoop(self, node: ForLoop):
-		# Check if identifier is a variable
-		if node.identifier not in self.symbols.keys() or\
-		self.symbols.get(node.identifier)[0] in ("const", "array", "subroutine"):
-			self.raise_error(node, 14, f"Variable {node.identifier} is not defined.")
-		
-		location = self.symbols[node.identifier][1]
-
-		if not node.body.body: # Loop is empty, so there is no need to execute it
-			end = self.generate_code(node.end)			
-			self.d_reg = end
-			self.load_immediate(location, f"End value <- {node.identifier}")
-			self.instructions += ["COMP D-- M"]
-			self.memory[location] = self.d_reg - 1
-			return
-
-		# Set iterator to start value
-		self.generate_code(node.start)
-		self.load_immediate(location, f"Start value <- {node.identifier}")
-		self.instructions += ["COMP D M"]
-		
-		self.memory[location] = self.d_reg
-		jump: int = self.make_jump_label(name="for")
-
-		self.generate_code(node.body)
-
-		self.generate_code(node.step)
-		self.instructions[-1] += f" // Step value (.for{jump})"
-		step_value: int = self.d_reg
-		
-		self.load_immediate(location, f"{node.identifier}")
-		self.instructions.append("COMP D+M DM")
-		self.d_reg += self.memory[location]
-
-		self.generate_code(node.end)
-		self.instructions[-1] += f" // End value (.for{jump})"
-		self.load_immediate(location, f"{node.identifier}")
-		self.instructions.append("COMP D-M D")
-		self.d_reg -= self.memory[location]
-
-		self.load_immediate(f".for{jump}", f"Jump to start (.for{jump})")
-		self.instructions.append("COMP D JGT") if step_value > 0 else self.instructions.append("COMP D JLT")
-		self.a_reg = self.jumps_dict[jump]
-
 	def visitWhileLoop(self, node: WhileLoop):
 		jump: int = self.make_jump_label(name="while")
 		end_loop: int = self.make_jump_label(appending=False, name="endwhile")
@@ -1004,7 +961,6 @@ class Compiler:
 
 		self.generate_code(node.step)
 		self.instructions[-1] += f" // Step value (.for{jump})"
-		step_value: int = self.d_reg
 
 		self.load_immediate(location, f"{node.identifier}")
 		self.instructions.append("COMP D+M DM" if node.step_op.token_type == TT.ADD else "COMP D-M DM")
