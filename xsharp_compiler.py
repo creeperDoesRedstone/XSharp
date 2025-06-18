@@ -52,8 +52,6 @@ class Compiler:
 		self.a_reg = 0
 		self.d_reg = 0
 
-		self.input_addr = 2050
-
 		self.known_values = (-2, -1, 0, 1)
 
 	def raise_error(self, node, code: int, message: str):
@@ -680,7 +678,7 @@ class Compiler:
 				if self.symbols[node.length][0] != "const":
 					self.raise_error(node, 21, "Expected a constant, got an identifier instead.")
 				
-			length = self.symbols.get(node.length, node.length)
+			length = self.symbols.get(node.length, (None, node.length))[1]
 			
 			if node.value is None:
 				self.vars += length
