@@ -1,6 +1,7 @@
 from enum import Enum
-from xsharp_helper import Position, UnexpectedCharacter, UnknownLibrary
+from xsharp_helper import Position, UnexpectedCharacter, UnknownImport
 import string
+from os.path import exists
 
 KEYWORDS = [
 	"const", "var",
@@ -64,14 +65,16 @@ class Lexer:
 
 	# Standard libraries
 	def process_file(self):
-		ftxt = self.ftxt.splitlines()
+		txt_lines = self.ftxt.splitlines()
 		result: list[str] = []
-		for i in ftxt:
+
+		for i in txt_lines:
 			newlines = i.split(";")
 			for j in newlines:
 				result += [j.strip()]
 
 		libraries: list[str] = []
+		files: list[str] = []
 		
 		for line in result:
 			line = line.split("//")[0].strip()
@@ -79,7 +82,9 @@ class Lexer:
 				libraries += line[7:].replace(" ", "").split(",")
 		
 		for lib in libraries:
-			if lib == "operations":
+			if lib.endswith(".xs") and exists(f"programs/{lib}"):
+				files.append(lib)
+			elif lib == "operations":
 				self.libraries.append("operations")
 			else:
 				index = self.ftxt.index(f"{lib}")
@@ -89,7 +94,15 @@ class Lexer:
 				end_pos = Position(
 					index + len(lib), self.ftxt[:index].count("\n"), 8, self.fn, self.ftxt
 				)
-				return UnknownLibrary(start_pos, end_pos, lib)
+				return UnknownImport(start_pos, end_pos, lib)
+		
+		module_txt: str = ""
+		for file in files:
+			with open(f"programs/{file}", "r") as module:
+				text = "".join(module.readlines())
+				module_txt += text + "\n"
+		
+		self.ftxt = module_txt + self.ftxt
 
 	# Lexes the file text and returns a list of tokens
 	def lex(self):
@@ -98,6 +111,10 @@ class Lexer:
 		lib_error = self.process_file()
 		if lib_error is not None:
 			return None, lib_error
+		
+		# Reinitialize, as this messes up the current character
+		self.pos = Position(-1, 0, -1, self.fn, self.ftxt)
+		self.advance()
 
 		while self.current_char is not None:
 			if self.ftxt.splitlines(keepends=True)[self.pos.line].strip().startswith("include "):
@@ -108,9 +125,10 @@ class Lexer:
 				self.advance()
 			
 			elif self.current_char in "\n\r;": # Newlines
+				char = self.current_char
 				start_pos = self.pos.copy()
 				self.advance()
-				tokens.append(Token(start_pos, self.pos, TT.NEWLINE))
+				tokens.append(Token(start_pos, self.pos, TT.NEWLINE, char))
 			
 			elif self.current_char == "&": # Bitwise AND
 				start_pos = self.pos.copy()
