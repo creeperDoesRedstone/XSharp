@@ -1,5 +1,5 @@
 from enum import Enum
-from xsharp_helper import Position, UnexpectedCharacter, UnknownImport
+from xsharp_helper import Position, UnexpectedCharacter, UnknownLibrary
 import string
 from os.path import exists
 
@@ -53,7 +53,7 @@ class Lexer:
 	def __init__(self, fn: str, ftxt: str, running_from_bot: bool = False):
 		self.fn = fn
 		self.ftxt = ftxt
-		self.from_bot = running_from_bot
+    self.from_bot = running_from_bot
 
 		self.pos = Position(-1, 0, -1, fn, ftxt)
 		self.libraries: list[str] = []
@@ -85,16 +85,17 @@ class Lexer:
 		
 		for lib in libraries:
 			if lib.endswith(".xs") and exists(f"programs/{lib}"):
-				if not self.from_bot: files.append(lib)
+				if not self.from_bot: files.append(lib)Add commentMore actions
 				else:
 					index = self.ftxt.index(f"{lib}")
 					start_pos = Position(
 						index, self.ftxt[:index].count("\n"), 8, self.fn, self.ftxt
 					)
 					end_pos = Position(
-						index + len(lib), self.ftxt[:index].count("\n"), 8, self.fn, self.ftxt
-					)
+	    			index + len(lib), self.ftxt[:index].count("\n"), 8, self.fn, self.ftxt
+          )
 					return UnknownImport(start_pos, end_pos, f"{lib} (cannot import files when running from Compilation Bot)")
+        
 			elif lib == "operations":
 				self.libraries.append("operations")
 			else:
@@ -105,7 +106,7 @@ class Lexer:
 				end_pos = Position(
 					index + len(lib), self.ftxt[:index].count("\n"), 8, self.fn, self.ftxt
 				)
-				return UnknownImport(start_pos, end_pos, lib)
+				return UnknownLibrary(start_pos, end_pos, lib)
 		
 		module_txt: str = ""
 		for file in files:

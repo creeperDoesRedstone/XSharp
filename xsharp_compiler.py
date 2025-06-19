@@ -73,6 +73,8 @@ class Compiler:
 			return result.success(["HALT"])
 
 		try:
+			for sub in ast.subroutineDefs:
+				self.visitSubroutineDef(sub)
 			self.generate_code(ast)
 			if len(self.instructions) > 0 and self.instructions[-1] == "COMP A D" and remove_that_one_line:
 				self.instructions = self.instructions[:-1]

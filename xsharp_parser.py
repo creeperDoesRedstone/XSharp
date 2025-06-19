@@ -4,7 +4,9 @@ from typing import Any
 
 ## NODES
 class Statements:
-	def __init__(self, start_pos: Position, end_pos: Position, body: list):
+	def __init__(self, start_pos: Position, end_pos: Position, body: list, subroutineDefs: list, varDeclarations: list):
+		self.subroutineDefs: list[SubroutineDef] = subroutineDefs
+		self.varDeclarations: list[VarDeclaration] = varDeclarations
 		self.start_pos = start_pos
 		self.end_pos = end_pos
 		self.body = body
@@ -212,8 +214,11 @@ class Parser:
 
 	def statements(self, end=(TT.EOF, )):
 		res = ParseResult()
+		defs = ParseResult()
 		body = []
 		more_statements = True
+		subroutineDefs = []
+		varDeclarations = []
 
 		while more_statements:
 			while self.current_token.token_type == TT.NEWLINE: self.advance()
@@ -223,29 +228,36 @@ class Parser:
 				end_pos = self.current_token.end_pos
 				more_statements = False
 				break
+			
+			statement, extra = self.statement()
+			if extra:
+				definition = defs.register(extra)
+				if defs.error: return defs
+				if isinstance(definition, VarDeclaration): varDeclarations.append(definition)
+				if isinstance(definition, SubroutineDef): subroutineDefs.append(definition)
+			if statement:
+				stmt = res.register(statement)
+				if res.error: return res
 
-			stmt = res.register(self.statement())
-			if res.error: return res
-
-			body.append(stmt)
+				body.append(stmt)
 
 			if self.current_token.token_type in end:
 				end_pos = self.current_token.end_pos
 				more_statements = False
-		
-		return res.success(Statements(start_pos, end_pos, body))
+
+		return res.success(Statements(start_pos, end_pos, body, subroutineDefs, varDeclarations))
 
 	def statement(self):
 		if self.current_token.token_type == TT.KEYWORD:
 			match self.current_token.value:
-				case "const": return self.const_definition()
+				case "const": return self.const_definition(), None
 				case "var": return self.var_declaration()
-				case "for": return self.for_loop()
-				case "while": return self.while_loop()
-				case "if": return self.if_statement()
-				case "sub": return self.subroutine_def()
+				case "for": return self.for_loop(), None
+				case "while": return self.while_loop(), None
+				case "if": return self.if_statement(), None
+				case "sub": return None, self.subroutine_def()
 
-		return self.expression()
+		return self.expression(), None
 
 	def const_definition(self):
 		res = ParseResult()
@@ -278,7 +290,7 @@ class Parser:
 			return res.fail(InvalidSyntax(
 				self.current_token.start_pos, self.current_token.end_pos,
 				"Expected an identifier after 'var' keyword."
-			))
+			)), None
 		identifier = self.current_token.value
 		self.advance()
 
@@ -286,14 +298,14 @@ class Parser:
 			return res.fail(InvalidSyntax(
 				self.current_token.start_pos, self.current_token.end_pos,
 				"Expected ':' after variable."
-			))
+			)), None
 		self.advance()
 
 		if not (self.current_token.token_type == TT.KEYWORD and self.current_token.value in DATA_TYPES):
 			return res.fail(InvalidSyntax(
 				self.current_token.start_pos, self.current_token.end_pos,
 				f"Expected {', '.join(DATA_TYPES)} after ':'."
-			))
+			)), None
 		data_type = self.current_token.value
 		self.advance()
 
@@ -304,7 +316,7 @@ class Parser:
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
 					"Expected a number or constant for the array length."
-				))
+				)), None
 			length = self.current_token.value
 			self.advance()
 
@@ -312,7 +324,7 @@ class Parser:
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
 					"Expected ']' after array length."
-				))
+				)), None
 			self.advance()
 
 		expr = None
@@ -322,7 +334,7 @@ class Parser:
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
 					"Expected '=', a nwewline, or EOF after ':'."
-				))
+				)), None
 		else:
 			self.advance()
 
@@ -334,9 +346,9 @@ class Parser:
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
 					"Expected a newline or EOF after variable declaration."
-				))
-			
-		return res.success(VarDeclaration(identifier, expr, data_type, start_pos, end_pos, length))
+				)), None
+		result = res.success( VarDeclaration(identifier, expr, data_type, start_pos, end_pos, length))
+		return result, result
 
 	def for_loop(self):
 		res = ParseResult()
