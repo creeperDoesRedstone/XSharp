@@ -290,7 +290,7 @@ class Parser:
 			return res.fail(InvalidSyntax(
 				self.current_token.start_pos, self.current_token.end_pos,
 				"Expected an identifier after 'var' keyword."
-			))
+			)), None
 		identifier = self.current_token.value
 		self.advance()
 
@@ -298,14 +298,14 @@ class Parser:
 			return res.fail(InvalidSyntax(
 				self.current_token.start_pos, self.current_token.end_pos,
 				"Expected ':' after variable."
-			))
+			)), None
 		self.advance()
 
 		if not (self.current_token.token_type == TT.KEYWORD and self.current_token.value in DATA_TYPES):
 			return res.fail(InvalidSyntax(
 				self.current_token.start_pos, self.current_token.end_pos,
 				f"Expected {', '.join(DATA_TYPES)} after ':'."
-			))
+			)), None
 		data_type = self.current_token.value
 		self.advance()
 
@@ -316,7 +316,7 @@ class Parser:
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
 					"Expected a number or constant for the array length."
-				))
+				)), None
 			length = self.current_token.value
 			self.advance()
 
@@ -324,7 +324,7 @@ class Parser:
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
 					"Expected ']' after array length."
-				))
+				)), None
 			self.advance()
 
 		expr = None
@@ -334,7 +334,7 @@ class Parser:
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
 					"Expected '=', a nwewline, or EOF after ':'."
-				))
+				)), None
 		else:
 			self.advance()
 
@@ -346,7 +346,7 @@ class Parser:
 				return res.fail(InvalidSyntax(
 					self.current_token.start_pos, self.current_token.end_pos,
 					"Expected a newline or EOF after variable declaration."
-				))
+				)), None
 		result = res.success( VarDeclaration(identifier, expr, data_type, start_pos, end_pos, length))
 		return result, result
 
