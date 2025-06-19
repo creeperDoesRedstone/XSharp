@@ -1,5 +1,5 @@
 from enum import Enum
-from xsharp_helper import Position, UnexpectedCharacter, UnknownImport
+from xsharp_helper import Position, UnexpectedCharacter, UnknownLibrary
 import string
 from os.path import exists
 
@@ -94,7 +94,7 @@ class Lexer:
 				end_pos = Position(
 					index + len(lib), self.ftxt[:index].count("\n"), 8, self.fn, self.ftxt
 				)
-				return UnknownImport(start_pos, end_pos, lib)
+				return UnknownLibrary(start_pos, end_pos, lib)
 		
 		module_txt: str = ""
 		for file in files:
