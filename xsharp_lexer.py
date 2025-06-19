@@ -50,9 +50,11 @@ class Token:
 		return not (self.__eq__(value))
 
 class Lexer:
-	def __init__(self, fn: str, ftxt: str):
+	def __init__(self, fn: str, ftxt: str, running_from_bot: bool = False):
 		self.fn = fn
 		self.ftxt = ftxt
+    self.from_bot = running_from_bot
+
 		self.pos = Position(-1, 0, -1, fn, ftxt)
 		self.libraries: list[str] = []
 		self.current_char = None
@@ -83,7 +85,17 @@ class Lexer:
 		
 		for lib in libraries:
 			if lib.endswith(".xs") and exists(f"programs/{lib}"):
-				files.append(lib)
+				if not self.from_bot: files.append(lib)Add commentMore actions
+				else:
+					index = self.ftxt.index(f"{lib}")
+					start_pos = Position(
+						index, self.ftxt[:index].count("\n"), 8, self.fn, self.ftxt
+					)
+					end_pos = Position(
+	    			index + len(lib), self.ftxt[:index].count("\n"), 8, self.fn, self.ftxt
+          )
+					return UnknownImport(start_pos, end_pos, f"{lib} (cannot import files when running from Compilation Bot)")
+        
 			elif lib == "operations":
 				self.libraries.append("operations")
 			else:

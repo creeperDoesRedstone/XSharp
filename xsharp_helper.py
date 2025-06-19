@@ -40,9 +40,9 @@ class UnexpectedCharacter(Error):
 		super().__init__(start_pos, end_pos, "Unexpected Character", details)
 
 # Occurs when the lexer finds an unknown library.
-class UnknownLibrary(Error):
+class UnknownImport(Error):
 	def __init__(self, start_pos: Position, end_pos: Position, details: str):
-		super().__init__(start_pos, end_pos, "Unknown Library", details)
+		super().__init__(start_pos, end_pos, "Unknown Import", details)
 
 # Occurs when the parser encounters incorrect syntax.
 class InvalidSyntax(Error):

@@ -20,8 +20,7 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 
 	# Help command
 	if user_input == "$xs_help":
-		help_message: str =\
-		"""Here are my commands:
+		help_message: str = """Here are my commands:
 - `$xs_help`: Shows this message.
 - `$xs_compile`: Compiles X# Code to XAssembly.
 - `$xs_rcompile`: Same as above, but removes the last line.
@@ -31,16 +30,16 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 - `$xs_run`: Runs Xenon's machine code.
 - `$xs_runcode`: Runs X# Code directly.
 - `$xs_repo`: Shows the X# repository.
-"""
+		"""
 		return help_message, Responses.HELP, False
 	
 	if user_input == "$xs_repo":
 		return "[X# Repository](<https://github.com/creeperDoesRedstone/XSharp/tree/main>)", Responses.HELP, False
 
 	# Compile X# into XAssembly
-	if re.findall(r"\$xs_compile\n?```\n(.*\n?)*?```", user_input):
+	if re.findall(r"\$xs_compile\n*?```\n(.*\n?)*?```", user_input):
 		code: str = "\n".join(user_input.replace("```", "").splitlines()[1:])
-		result, error = xs_compile("<code>", code)
+		result, error = xs_compile("<code>", code, from_bot=True)
 		
 		if error:
 			return repr(error), Responses.ERROR, False
@@ -49,9 +48,9 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 		return "Compilation requires a code block!", Responses.ERROR, False
 	
 	# Compile X# into XAssembly but remove that one line
-	if re.findall(r"\$xs_rcompile\n?```\n(.*\n?)*?```", user_input):
+	if re.findall(r"\$xs_rcompile\n*?```\n(.*\n?)*?```", user_input):
 		code: str = "\n".join(user_input.replace("```", "").splitlines()[1:])
-		result, error = xs_compile("<code>", code, True)
+		result, error = xs_compile("<code>", code, True, True)
 		
 		if error:
 			return repr(error), Responses.ERROR, False
@@ -60,7 +59,7 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 		return "Compilation requires a code block!", Responses.ERROR, False
 	
 	# Compile XAssembly to Xenon's machine code
-	if re.findall(r"\$xs_assemble\n?```\n(.*\n?)*?```", user_input):
+	if re.findall(r"\$xs_assemble\n*?```\n(.*\n?)*?```", user_input):
 		assembly: str = "\n".join(user_input.replace("```", "").splitlines()[2:])
 		result = assemble(assembly)
 
@@ -71,9 +70,9 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 		return "Assembly requires a code block!", Responses.ERROR, False
 	
 	# Compile X# directly to machine code
-	if re.findall(r"\$xs_compile_assemble\n?```\n(.*\n?)*?```", user_input):
+	if re.findall(r"\$xs_compile_assemble\n*?```\n(.*\n?)*?```", user_input):
 		code: str = "\n".join(user_input.replace("```", "").splitlines()[1:])
-		result, error = xs_compile("<code>", code)
+		result, error = xs_compile("<code>", code, from_bot=True)
 		if error:
 			return repr(error), Responses.ERROR, False
 		
@@ -87,9 +86,9 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 		return "Compilation requires a code block!", Responses.ERROR, False
 	
 	# Compile X# directly to machine code but remove that one line
-	if re.findall(r"\$xs_rcompile_assemble\n?```\n(.*\n?)*?```", user_input):
+	if re.findall(r"\$xs_rcompile_assemble\n*?```\n(.*\n?)*?```", user_input):
 		code: str = "\n".join(user_input.replace("```", "").splitlines()[1:])
-		result, error = xs_compile("<code>", code, True)
+		result, error = xs_compile("<code>", code, True, True)
 		if error:
 			return repr(error), Responses.ERROR, False
 		
@@ -103,7 +102,7 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 		return "Compilation requires a code block!", Responses.ERROR, False
 	
 	# Run Xenon's machine code
-	if re.findall(r"\$xs_run\n?```\n(.*\n?)*?```", user_input):
+	if re.findall(r"\$xs_run\n*?```\n(.*\n?)*?```", user_input):
 		machine_code: str = "\n".join(user_input.replace("```", "").splitlines()[1:])
 
 		# Create a new virtual machine
@@ -115,7 +114,7 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 			return f"HALT instruction ({'0' * 13}100) not found!", Responses.ERROR, False
 		
 		try:
-			timeout = vm.run(machine_code, 100_000)
+			timeout = vm.run(machine_code, 500_000)
 			if timeout:
 				return "Timeout Error", Responses.ERROR, False
 			
@@ -123,10 +122,10 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 			result += f"\n{vm.d_reg.text()}"
 			result += f"\n{vm.memory.text()}"
 
-			if vm.lit_pixels:
-				write_screen(vm.lit_pixels)
+			if vm.screen:
+				write_screen(vm.screen)
 
-			return result, Responses.SUCCESS, len(vm.lit_pixels) > 0
+			return result, Responses.SUCCESS, len(vm.screen) > 0
 		
 		except Exception as e:
 			return f"{e}", Responses.ERROR, False
@@ -134,9 +133,9 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 		return "Running Xenon's machine code requires a code block!", Responses.ERROR, False
 
 	# Run X# directly
-	if re.findall(r"\$xs_runcode\n?```\n(.*\n?)*?```", user_input):
+	if re.findall(r"\$xs_runcode\n*?```\n(.*\n?)*?```", user_input):
 		code: str = "\n".join(user_input.replace("```", "").splitlines()[1:])
-		result, error = xs_compile("<code>", code)
+		result, error = xs_compile("<code>", code, from_bot=True)
 		if error:
 			return repr(error), Responses.ERROR, False
 		
@@ -152,21 +151,22 @@ def get_response(user_input: str) -> tuple[str, Literal[Responses.SUCCESS, Respo
 		app = QApplication([])
 		vm = VirtualMachine()
 		vm.program_counter = 0
+		vm.clock_speed.setValue(0) # Instant clock speed
 
 		if "0000000000000100" not in machine_code:
 			return f"HALT instruction ({'0' * 13}100) not found!", Responses.ERROR, False
 		
 		try:
-			timeout = vm.run(machine_code, 100_000)
+			timeout = vm.run(machine_code, 500_000)
 			if timeout:
 				return "Timeout Error", Responses.ERROR, False
 			
 			result: str = f"Result: {vm.d_reg_value}"
 
-			if vm.lit_pixels:
-				write_screen(vm.lit_pixels)
+			if vm.screen:
+				write_screen(vm.screen)
 
-			return result, Responses.SUCCESS, len(vm.lit_pixels) > 0
+			return result, Responses.SUCCESS, len(vm.screen) > 0
 		
 		except Exception as e:
 			return f"{e}", Responses.ERROR, False
