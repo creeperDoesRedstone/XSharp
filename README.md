@@ -159,7 +159,7 @@ halt()
 ### `Other Things`
 The language has a few other functions:
 ```cpp
-include operation // Includes the operations library
+include operations // Includes the operations library
 17 * 2 // multiplication
 5 % 2 // modulo
 ```
