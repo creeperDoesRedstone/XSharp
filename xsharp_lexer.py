@@ -1,5 +1,5 @@
 from enum import Enum
-from xsharp_helper import Position, UnexpectedCharacter, UnknownLibrary
+from xsharp_helper import Position, UnexpectedCharacter, UnknownImport
 import string
 from os.path import exists
 
@@ -85,7 +85,7 @@ class Lexer:
 		
 		for lib in libraries:
 			if lib.endswith(".xs") and exists(f"programs/{lib}"):
-				if not self.from_bot: files.append(lib)Add commentMore actions
+				if not self.from_bot: files.append(lib)
 				else:
 					index = self.ftxt.index(f"{lib}")
 					start_pos = Position(
