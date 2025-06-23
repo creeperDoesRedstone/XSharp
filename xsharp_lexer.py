@@ -121,7 +121,6 @@ class Lexer:
 				text = "".join(module.readlines())
 				self.imported.add(file)
 				self.process_file(text)
-				print(f"imported: {file}")
 				module_txt += text + "\n"
 		
 		self.ftxt = module_txt + self.ftxt
