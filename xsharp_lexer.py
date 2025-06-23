@@ -58,6 +58,7 @@ class Lexer:
 		self.pos = Position(-1, 0, -1, fn, ftxt)
 		self.libraries: list[str] = []
 		self.current_char = None
+		self.imported: set = set()
 		self.advance()
 
 	# Advance to the next character
@@ -66,14 +67,18 @@ class Lexer:
 		self.current_char = None if self.pos.index >= len(self.ftxt) else self.ftxt[self.pos.index]
 
 	# Standard libraries
-	def process_file(self):
-		txt_lines = self.ftxt.splitlines()
-		result: list[str] = []
+	def process_file(self, contents: str|None = None):
+		txt_lines : str
+		if contents:
+			txt_lines = contents.splitlines()
+		else:
+			txt_lines = self.ftxt.splitlines()
 
-		for i in txt_lines:
-			newlines = i.split(";")
-			for j in newlines:
-				result += [j.strip()]
+		result: list[str] = [
+			j.strip()
+			for i in txt_lines
+			for j in i.split(";")
+		]
 
 		libraries: list[str] = []
 		files: list[str] = []
@@ -110,8 +115,13 @@ class Lexer:
 		
 		module_txt: str = ""
 		for file in files:
+			if file in self.imported:
+				continue
 			with open(f"programs/{file}", "r") as module:
 				text = "".join(module.readlines())
+				self.imported.add(file)
+				self.process_file(text)
+				print(f"imported: {file}")
 				module_txt += text + "\n"
 		
 		self.ftxt = module_txt + self.ftxt
