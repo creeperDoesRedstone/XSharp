@@ -95,7 +95,8 @@ class Compiler:
 
 		# Predefine subroutines
 		for sub in ast.subroutine_defs:
-			self.visitSubroutineDef(sub, env)
+			res.register(self.visitSubroutineDef(sub, env))
+			if res.error: return res
 
 		res.register(self.visit(ast, env))
 		if res.error: return res
@@ -104,6 +105,8 @@ class Compiler:
 		# Generate subroutine bodies
 		for sub in ast.subroutine_defs:
 			self.write(f".sub_{sub.name}")
+			self.comment(f"{len(sub.parameters)} params")
+
 			self.tabs += 1
 			res.register(self.visit(sub.body, env))
 			if res.error: return res
@@ -727,6 +730,8 @@ class Compiler:
 
 		self.load_immediate(location, forced=True)
 		self.write("COMP D M")
+
+		return res.success(None)
 
 	def visitCallExpression(self, node: CallExpression, env: Environment):
 		res = CompileResult()
