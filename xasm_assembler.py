@@ -33,25 +33,30 @@ def assemble(ftxt: str):
 		skips: int = 0
 
 		file_text: str = ftxt
+
 		for i in range(16): # Remove register labels r0 - r15
-			file_text = file_text.replace(f"r{i}", f"{i}")
+			file_text = file_text.replace(f"LDIA r{i}", f"LDIA {i}")
 
 		# Preliminary scan
 		for line_num, line in enumerate(file_text.splitlines()):
-			if line.startswith(".") and " " not in line.strip():
-				labels[line.strip()] = line_num - skips
+			ln = line
+			try: comment_index = ln.index("//")
+			except: pass
+			else: ln = ln[:comment_index] # Remove comments
+			ln = ln.strip()
+
+			if ln.startswith(".") and " " not in ln:
+				labels[ln] = line_num - skips
 				skips += 1
 
 		# Assemble
 		for line_num, line in enumerate(file_text.splitlines()):
 			line = line.strip()
+			# print(line)
 
-			try:
-				comment_index = line.index("//")
-			except:
-				pass
-			else:
-				line = line[:comment_index] # Remove comments
+			try: comment_index = line.index("//")
+			except: pass
+			else: line = line[:comment_index] # Remove comments
 
 			if line.strip() == "":
 				binary_result.append("0" * 16) # NOOP
@@ -78,7 +83,7 @@ def assemble(ftxt: str):
 					try:
 						value = int(immediate)
 					except ValueError:
-						return ValueError(f"Label '{immediate}' unbound.")
+						return ValueError(f"Label '{immediate}' unbound (line {line_num + 1}).")
 
 					binary_result.append(f"{convert_to_bin(value)}10")
 				
@@ -173,7 +178,7 @@ class ASMSyntaxHighlighter(SyntaxHighlighter):
 		self.add_rule(r"\b\d+(\.\d+)?\b", "number")
 		self.add_rule(r"(\+|-|&|\||~|\^|>>)", "operation")
 		self.add_rule(r"(?<!\S)\.\w+", "label")
-		self.add_rule(r"\b(move|append)\b", "parameter")
+		self.add_rule(r"\b(move|update)\b", "parameter")
 		self.add_rule(r"//[^\n]*", "comment")
 
 class XAsmAssembler(QMainWindow):
