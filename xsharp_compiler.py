@@ -266,17 +266,24 @@ class Compiler:
 
 		if operation == "MUL":
 			# Shift-and-add algorithm
-			self.write("COMP 0 D")
+			self.load_immediate(reg_right)
+			self.write("COMP D M")
 			product: str = res.register(self.allocate(node))
 			if res.error: return res
+			self.load_immediate(product)
+			self.write("COMP 0 M")
 
 			self.visitIntLiteral(IntLiteral(16, None, None), env)
 			bits: str = res.register(self.allocate(node))
 			if res.error: return res
 
+			self.load_immediate(f"{bits}")
+			self.write("COMP D M")
+
 			mul_loop: int = self.make_jump()
 
 			self.write(f".mul_loop{mul_loop}")
+			self.tabs += 1
 			self.write("COMP 1 D")
 			self.load_immediate(reg_right); self.comment("Get LSB")
 			self.write("COMP D&M D")
@@ -287,7 +294,7 @@ class Compiler:
 			self.load_immediate(reg_left); self.comment("Multiplier")
 			self.write("COMP M D")
 			self.load_immediate(product); self.comment("Product")
-			self.write("COMP D M")
+			self.write("COMP D+M M")
 
 			# Shift multiplier and multiplicand
 			self.write(f".mul_shift{mul_loop}")
@@ -302,6 +309,7 @@ class Compiler:
 			self.write("COMP M-- DM")
 			self.load_immediate(f".mul_loop{mul_loop}")
 			self.write("COMP D JGE")
+			self.tabs -= 1
 
 			self.load_immediate(f"{product}", forced=True)
 			self.write("COMP M D")
@@ -449,10 +457,11 @@ class Compiler:
 			res.register(env.define_symbol(node.identifier, location, "var"))
 			if res.error: return res
 		
-		if value in self.KNOWN_VALUES: self.truncate(value_pos)		
-		self.load_immediate(location)
-		self.comment(node.identifier)
-		self.write("COMP D M" if value not in self.KNOWN_VALUES else f"COMP {value} M")
+		if value or node.length is not None:
+			if value in self.KNOWN_VALUES: self.truncate(value_pos)		
+			self.load_immediate(location)
+			self.comment(node.identifier)
+			self.write("COMP D M" if value not in self.KNOWN_VALUES else f"COMP {value} M")
 
 		return res.success(None)
 
